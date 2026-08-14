@@ -140,3 +140,28 @@ export async function deleteOrderApi(orderId: string): Promise<boolean> {
     return false
   }
 }
+
+export async function validateCouponApi(code: string, orderTotal: number): Promise<{ valid: boolean; discount: number; message: string }> {
+  try {
+    const { data, error } = await supabase
+      .from('coupons')
+      .select('*')
+      .eq('code', code.trim().toUpperCase())
+      .eq('valid', true)
+      .single()
+
+    if (error || !data) return { valid: false, discount: 0, message: 'Invalid or expired coupon code.' }
+    if (data.min_order > 0 && orderTotal < data.min_order) {
+      return { valid: false, discount: 0, message: `Minimum order ₹${data.min_order} required for this coupon.` }
+    }
+
+    const discount = data.discount_type === 'flat'
+      ? Math.min(data.discount_value, orderTotal)
+      : Math.round((orderTotal * data.discount_value) / 100)
+
+    return { valid: true, discount, message: `🎉 Coupon applied! You save ₹${discount}.` }
+  } catch {
+    return { valid: false, discount: 0, message: 'Could not validate coupon. Try again.' }
+  }
+}
+
