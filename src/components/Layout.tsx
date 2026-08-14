@@ -36,7 +36,7 @@ export default function Layout() {
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
           <span style={{ color: '#f59e0b' }}>📍</span>
-          <span>Bhabanipur, Nandakumar–Digha Highway (Open 11 AM – 12 AM)</span>
+          <span>Bhabanipur, Nandakumar–Digha Highway</span>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
           <button
