@@ -22,7 +22,7 @@ const ROLE_CFG: Record<string, { label: string; icon: string; color: string; bg:
 }
 
 // Super admin cannot be demoted
-const SUPER_ADMIN_PHONES = ['7001045147']
+const SUPER_ADMIN_PHONES = ['8170859653']
 
 export default function AdminStaff() {
   const { setUserRole, resetUserPin, blockUser } = useAuth()

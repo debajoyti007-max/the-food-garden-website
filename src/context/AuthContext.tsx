@@ -4,7 +4,7 @@ import { showToast } from '../components/Toast'
 import { supabase } from '../lib/supabase'
 
 // ── Super Admin Protection ─────────────────────────────────────────────────
-const SUPER_ADMIN_PHONES = ['7001045147']
+const SUPER_ADMIN_PHONES = ['8170859653']
 
 function ensureAdminRole(user: User | null): User | null {
   if (!user) return null
