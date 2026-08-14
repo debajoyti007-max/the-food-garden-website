@@ -170,11 +170,11 @@ export default function Shop() {
       {/* 🚀 Hero Banner */}
       <section
         style={{
-          background: 'linear-gradient(180deg, rgba(24,24,27,0.7) 0%, rgba(24,24,27,0.95) 100%), url(https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=1200&auto=format&fit=crop)',
+          background: 'linear-gradient(180deg, rgba(24,24,27,0.6) 0%, rgba(24,24,27,0.95) 100%), url(/tfg-hero.jpg)',
           backgroundSize: 'cover',
           backgroundPosition: 'center',
           borderRadius: '20px',
-          padding: '3rem 1.5rem',
+          padding: '3.5rem 1.5rem',
           textAlign: 'center',
           border: '1px solid #3f3f46',
           marginBottom: '1.5rem',

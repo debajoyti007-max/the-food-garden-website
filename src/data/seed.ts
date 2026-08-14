@@ -13,8 +13,8 @@ export const SEED_MENU: MenuItem[] = [
     pB: 220, // Full Plate (1 Big Chicken + Egg + Alu)
     pC: 140, // Half Plate
     inStock: true,
-    imageUrl: 'https://images.unsplash.com/photo-1563379091339-03b21ab4a4f8?w=600&auto=format&fit=crop',
-    description: 'Aromatic long-grain basmati rice cooked on dum with succulent chicken and secret spices.',
+    imageUrl: '/tfg-biryani.jpg',
+    description: 'Aromatic long-grain basmati rice cooked on dum with succulent chicken, egg, and spiced potato.',
   },
   {
     id: 'tfg-2',
