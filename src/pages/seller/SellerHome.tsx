@@ -44,16 +44,21 @@ export default function SellerHome() {
       </div>
 
       {/* Navigation Quick Links */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.75rem' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.75rem' }}>
         <Link to="/seller/orders" style={{ background: '#27272a', border: '1px solid #3f3f46', borderRadius: '12px', padding: '1.25rem', textDecoration: 'none', color: '#fafaf9' }}>
           <span style={{ fontSize: '1.8rem', display: 'block', marginBottom: '0.35rem' }}>📋</span>
-          <strong style={{ display: 'block', color: '#f59e0b', fontSize: '1.05rem' }}>Kitchen Orders (KOT)</strong>
-          <span style={{ fontSize: '0.78rem', color: '#a1a1aa' }}>Verify UTR, mark cooking, print receipts</span>
+          <strong style={{ display: 'block', color: '#f59e0b', fontSize: '1rem' }}>Kitchen KOT</strong>
+          <span style={{ fontSize: '0.75rem', color: '#a1a1aa' }}>Live orders & receipts</span>
+        </Link>
+        <Link to="/seller/products" style={{ background: '#27272a', border: '1px solid #3f3f46', borderRadius: '12px', padding: '1.25rem', textDecoration: 'none', color: '#fafaf9' }}>
+          <span style={{ fontSize: '1.8rem', display: 'block', marginBottom: '0.35rem' }}>⚙️</span>
+          <strong style={{ display: 'block', color: '#f59e0b', fontSize: '1rem' }}>Menu & Stock</strong>
+          <span style={{ fontSize: '0.75rem', color: '#a1a1aa' }}>Edit prices & availability</span>
         </Link>
         <Link to="/" style={{ background: '#27272a', border: '1px solid #3f3f46', borderRadius: '12px', padding: '1.25rem', textDecoration: 'none', color: '#fafaf9' }}>
           <span style={{ fontSize: '1.8rem', display: 'block', marginBottom: '0.35rem' }}>🍽️</span>
-          <strong style={{ display: 'block', color: '#f59e0b', fontSize: '1.05rem' }}>Food Menu View</strong>
-          <span style={{ fontSize: '0.78rem', color: '#a1a1aa' }}>Customer food ordering menu</span>
+          <strong style={{ display: 'block', color: '#f59e0b', fontSize: '1rem' }}>Customer Menu</strong>
+          <span style={{ fontSize: '0.75rem', color: '#a1a1aa' }}>View store as customer</span>
         </Link>
       </div>
     </div>

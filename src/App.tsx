@@ -12,6 +12,7 @@ import Profile from './pages/Profile'
 import Auth from './pages/Auth'
 import SellerHome from './pages/seller/SellerHome'
 import SellerOrders from './pages/seller/SellerOrders'
+import SellerProducts from './pages/seller/SellerProducts'
 import RiderView from './pages/rider/RiderView'
 
 export default function App() {
@@ -31,6 +32,7 @@ export default function App() {
               <Route path="auth" element={<Auth />} />
               <Route path="seller" element={<SellerHome />} />
               <Route path="seller/orders" element={<SellerOrders />} />
+              <Route path="seller/products" element={<SellerProducts />} />
               <Route path="rider" element={<RiderView />} />
             </Route>
           </Routes>
