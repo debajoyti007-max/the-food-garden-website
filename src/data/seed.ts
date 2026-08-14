@@ -1,7 +1,7 @@
 import type { MenuItem } from '../types'
 
 export const SEED_MENU: MenuItem[] = [
-  // 🍗 BIRYANI & RICE
+  // 🍗 BIRYANI & RICE SPECIALTIES
   {
     id: 'tfg-1',
     name: 'Special Chicken Dum Biryani',
@@ -27,13 +27,13 @@ export const SEED_MENU: MenuItem[] = [
     pB: 340,
     pC: 220,
     inStock: true,
-    imageUrl: 'https://images.unsplash.com/photo-1589302168068-964664d93dc0?w=600&auto=format&fit=crop',
-    description: 'Tender marinated mutton cooked with fragranced rice, potatoes, and boiled eggs.',
+    imageUrl: '/tfg-biryani.jpg',
+    description: 'Tender marinated mutton pieces cooked with scented saffron rice, egg, and spiced potato.',
   },
   {
     id: 'tfg-3',
-    name: 'Chicken Fried Rice & Chilli Chicken Combo',
-    bnName: 'ফ্রাইড রাইস ও চিলি চিকেন কম্বো',
+    name: 'Egg Chicken Fried Rice & Chilli Chicken Combo',
+    bnName: 'চিকেন ফ্রাইড রাইস ও চিলি চিকেন কম্বো',
     emoji: '🍚',
     category: 'Biryani & Rice',
     unit: 'box',
@@ -41,8 +41,8 @@ export const SEED_MENU: MenuItem[] = [
     pB: 260,
     pC: 180,
     inStock: true,
-    imageUrl: 'https://images.unsplash.com/photo-1603133872878-684f208fb84b?w=600&auto=format&fit=crop',
-    description: 'Wok-tossed egg chicken fried rice served with hot garlic chilli chicken.',
+    imageUrl: '/tfg-chinese.jpg',
+    description: 'Wok-tossed egg chicken fried rice served with sizzling hot garlic chilli chicken.',
   },
 
   // 🍢 TANDOORI & KEBABS
@@ -57,13 +57,13 @@ export const SEED_MENU: MenuItem[] = [
     pB: 240, // Half (2 pcs)
     pC: 130, // Quarter (1 pc)
     inStock: true,
-    imageUrl: 'https://images.unsplash.com/photo-1599488615731-7e5c2823ff28?w=600&auto=format&fit=crop',
-    description: 'Chicken roasted in a clay oven marinated in yogurt and traditional spices.',
+    imageUrl: '/tfg-tandoori.jpg',
+    description: 'Fresh chicken roasted in clay tandoor marinated with hung curd, lemon, and Kashmiri red spices.',
   },
   {
     id: 'tfg-5',
     name: 'Chicken Reshmi Malai Kebab',
-    bnName: 'চিকেন রেশমি কাবাব',
+    bnName: 'চিকেন রেশমি মালাই কাবাব',
     emoji: '🍢',
     category: 'Tandoori & Starters',
     unit: 'portion',
@@ -71,13 +71,13 @@ export const SEED_MENU: MenuItem[] = [
     pB: 220, // 4 pcs
     pC: 120,
     inStock: true,
-    imageUrl: 'https://images.unsplash.com/photo-1555939594-58d7cb561ad1?w=600&auto=format&fit=crop',
-    description: 'Melt-in-mouth chicken chunks marinated in cream, cashew paste, and mild herbs.',
+    imageUrl: '/tfg-tandoori.jpg',
+    description: 'Juicy melt-in-mouth chicken cubes marinated in cashew cream, cheese, and mild aromatic herbs.',
   },
   {
     id: 'tfg-6',
     name: 'Crispy Chilli Baby Corn',
-    bnName: 'চিলি বেবিকর্ন',
+    bnName: 'ক্রিস্পি চিলি বেবিকর্ন',
     emoji: '🌽',
     category: 'Tandoori & Starters',
     unit: 'portion',
@@ -86,7 +86,7 @@ export const SEED_MENU: MenuItem[] = [
     pC: 110,
     inStock: true,
     imageUrl: 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=600&auto=format&fit=crop',
-    description: 'Crispy fried golden baby corns tossed in spicy Indo-Chinese chilli sauce.',
+    description: 'Golden fried baby corns tossed in spicy Indo-Chinese chilli garlic sauce and scallions.',
   },
 
   // 🍝 CAFE & CONTINENTAL
@@ -102,21 +102,21 @@ export const SEED_MENU: MenuItem[] = [
     pC: 160,
     inStock: true,
     imageUrl: 'https://images.unsplash.com/photo-1621996346565-e3d5d6281696?w=600&auto=format&fit=crop',
-    description: 'Rich cheesy Alfredo pasta with roasted garlic, herbs, and chicken chunks.',
+    description: 'Cheesy rich Alfredo penne pasta with garlic, herbs, sweet corn, and chicken chunks.',
   },
   {
     id: 'tfg-8',
     name: 'Crispy Double Chicken Cheese Burger',
-    bnName: 'ক্রিস্পি ডাবল চিকেন বার্গার',
+    bnName: 'ক্রিস্পি ডাবল চিকেন চিজ বার্গার',
     emoji: '🍔',
     category: 'Cafe & Continental',
     unit: 'meal',
-    pA: 260, // With Fries + Coke
+    pA: 260, // With Fries + Cold Drink
     pB: 170, // With Fries
-    pC: 110, // Burger only
+    pC: 110, // Burger Only
     inStock: true,
     imageUrl: 'https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=600&auto=format&fit=crop',
-    description: 'Golden fried crispy chicken patty topped with melted cheese and spicy mayo.',
+    description: 'Double golden fried chicken patties with melted cheddar cheese and spicy mayo.',
   },
 
   // 🍛 MAIN COURSE & BREADS
@@ -131,8 +131,8 @@ export const SEED_MENU: MenuItem[] = [
     pB: 260, // Half Handi
     pC: 150,
     inStock: true,
-    imageUrl: 'https://images.unsplash.com/photo-1603894584373-5ac82b2ae398?w=600&auto=format&fit=crop',
-    description: 'Smoked tandoori chicken cooked in rich velvety butter and tomato gravy.',
+    imageUrl: '/tfg-butter-chicken.jpg',
+    description: 'Smoked tandoori chicken cooked in rich velvety makhani butter and fresh tomato gravy.',
   },
   {
     id: 'tfg-10',
@@ -145,8 +145,8 @@ export const SEED_MENU: MenuItem[] = [
     pB: 60,
     pC: 45,
     inStock: true,
-    imageUrl: 'https://images.unsplash.com/photo-1601050690597-df0568f70950?w=600&auto=format&fit=crop',
-    description: 'Fresh clay-oven flatbread brushed with melted butter and fresh roasted garlic.',
+    imageUrl: '/tfg-butter-chicken.jpg',
+    description: 'Clay tandoor baked artisan flatbread brushed with garlic butter and fresh cilantro.',
   },
 
   // ☕ MOCKTAILS & CAFE DRINKS
@@ -162,7 +162,7 @@ export const SEED_MENU: MenuItem[] = [
     pC: 80,
     inStock: true,
     imageUrl: 'https://images.unsplash.com/photo-1513558161293-cdaf765ed2fd?w=600&auto=format&fit=crop',
-    description: 'Chilled citrus and blue curacao mocktail garnished with fresh mint and lemon.',
+    description: 'Chilled blue curacao citrus mocktail with fresh mint leaves and sparkling soda.',
   },
   {
     id: 'tfg-12',
@@ -176,6 +176,6 @@ export const SEED_MENU: MenuItem[] = [
     pC: 30,
     inStock: true,
     imageUrl: 'https://images.unsplash.com/photo-1544787219-7f47ccb76574?w=600&auto=format&fit=crop',
-    description: 'Smoky spiced milk tea served hot in a traditional roasted clay kulhad.',
+    description: 'Smoky cardamom milk tea brewed hot in a roasted earthen kulhad pot.',
   },
 ]

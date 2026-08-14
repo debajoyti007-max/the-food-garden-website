@@ -30,7 +30,7 @@ const StoreContext = createContext<StoreContextType | null>(null)
 export function StoreProvider({ children }: { children: ReactNode }) {
   const [menu, setMenu] = useState<MenuItem[]>(() => {
     try {
-      const saved = localStorage.getItem('tfg_menu')
+      const saved = localStorage.getItem('tfg_menu_v4')
       return saved ? JSON.parse(saved) : SEED_MENU
     } catch {
       return SEED_MENU
@@ -69,7 +69,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   }
 
   useEffect(() => {
-    localStorage.setItem('tfg_menu', JSON.stringify(menu))
+    localStorage.setItem('tfg_menu_v4', JSON.stringify(menu))
   }, [menu])
 
   useEffect(() => {
