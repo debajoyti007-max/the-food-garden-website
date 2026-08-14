@@ -236,7 +236,24 @@ export default function Layout() {
               </NavLink>
             )}
 
-            {/* Quick Kitchen Access for staff */}
+            {/* Staff Quick Access based on role */}
+            {user?.role === 'admin' && (
+              <NavLink
+                to="/admin"
+                style={{
+                  background: '#3b0764',
+                  border: '1px solid #7c3aed',
+                  color: '#e9d5ff',
+                  padding: '0.4rem 0.85rem',
+                  borderRadius: '8px',
+                  textDecoration: 'none',
+                  fontSize: '0.82rem',
+                  fontWeight: 800,
+                }}
+              >
+                🛡️ Admin Panel
+              </NavLink>
+            )}
             {(user?.role === 'seller' || user?.role === 'admin') && (
               <NavLink
                 to="/seller"
@@ -252,6 +269,23 @@ export default function Layout() {
                 }}
               >
                 👨‍🍳 Kitchen KOT
+              </NavLink>
+            )}
+            {user?.role === 'rider' && (
+              <NavLink
+                to="/rider"
+                style={{
+                  background: '#14532d',
+                  border: '1px solid #16a34a',
+                  color: '#bbf7d0',
+                  padding: '0.4rem 0.85rem',
+                  borderRadius: '8px',
+                  textDecoration: 'none',
+                  fontSize: '0.82rem',
+                  fontWeight: 800,
+                }}
+              >
+                🛵 Rider View
               </NavLink>
             )}
           </nav>
