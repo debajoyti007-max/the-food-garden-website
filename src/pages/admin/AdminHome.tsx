@@ -54,15 +54,15 @@ export default function AdminHome() {
       {/* Admin Control Panel Grid */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '0.85rem' }}>
         {[
-          { to: '/admin/orders', icon: '📋', title: 'All Orders', desc: 'View, update & cancel any order' },
+          { to: '/seller/orders', icon: '📋', title: 'Live Kitchen Orders', desc: 'Verify UTR, update status & print KOT' },
           { to: '/admin/staff', icon: '👥', title: 'Staff Accounts', desc: 'Create/manage kitchen & rider roles' },
           { to: '/seller/products', icon: '🍽️', title: 'Menu & Stock', desc: 'Edit prices and dish availability' },
-          { to: '/seller/orders', icon: '👨‍🍳', title: 'Kitchen KOT', desc: 'Live order screen & printing' },
+          { to: '/seller', icon: '📊', title: 'Kitchen Analytics', desc: 'Daily revenue, cost & packing lists' },
           { to: '/admin/coupons', icon: '🏷️', title: 'Promo Coupons', desc: 'Create & manage discount codes' },
-          { to: '/admin/reports', icon: '📊', title: 'Sales Reports', desc: 'Daily revenue & profit analytics' },
+          { to: '/track', icon: '📍', title: 'Live Order Tracker', desc: 'Track customer orders in real time' },
         ].map((item) => (
           <Link
-            key={item.to}
+            key={item.to + item.title}
             to={item.to}
             style={{
               background: '#1c1917',

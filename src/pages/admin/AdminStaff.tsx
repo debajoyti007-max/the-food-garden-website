@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../context/AuthContext'
@@ -49,6 +49,10 @@ export default function AdminStaff() {
     setLoading(false)
   }
 
+  useEffect(() => {
+    loadUsers()
+  }, [])
+
   const handleRoleChange = async (profile: Profile, role: UserRole) => {
     if (SUPER_ADMIN_PHONES.includes(profile.phone) && role !== 'admin') {
       showToast('Owner account cannot be demoted!', '🛡️')
@@ -81,7 +85,11 @@ export default function AdminStaff() {
 
     setCreating(true)
     const { error } = await supabase.from('profiles').insert({
-      phone: cleanPhone, name: form.name.trim(), pin: form.pin, role: form.role,
+      id: crypto.randomUUID(),
+      phone: cleanPhone,
+      name: form.name.trim(),
+      pin: form.pin,
+      role: form.role,
     })
     setCreating(false)
 

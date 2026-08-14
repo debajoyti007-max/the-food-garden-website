@@ -2,32 +2,48 @@ import { supabase } from './supabase'
 import type { MenuItem, Order, OrderStatus } from '../types'
 import { SEED_MENU } from '../data/seed'
 
+// ── Products ────────────────────────────────────────────────────────────────
 export async function fetchProductsApi(): Promise<MenuItem[]> {
   try {
-    const { data, error } = await supabase.from('products').select('*').order('created_at', { ascending: true })
-    if (error || !data || data.length === 0) {
-      return SEED_MENU
-    }
+    const { data, error } = await supabase
+      .from('products')
+      .select('*')
+      .eq('archived', false)
+      .order('created_at', { ascending: true })
+    if (error || !data || data.length === 0) return SEED_MENU
     return data.map((d: any) => ({
       id: d.id,
       name: d.name,
-      bnName: d.bn_name,
+      bnName: d.bn_name || d.name,
       emoji: d.emoji || '🍽️',
       category: d.category,
       unit: d.unit || 'plate',
-      pA: Number(d.p_a),
-      pB: Number(d.p_b),
-      pC: Number(d.p_c),
+      pA: Number(d.p_a) || 0,
+      pB: Number(d.p_b) || 0,
+      pC: Number(d.p_c) || 0,
       inStock: d.in_stock ?? true,
-      imageUrl: d.image_url,
+      imageUrl: d.image_url || null,
       archived: d.archived ?? false,
-      description: d.description,
+      description: d.description || '',
     }))
   } catch {
     return SEED_MENU
   }
 }
 
+export async function updateProductApi(
+  id: string,
+  updates: { p_a?: number; p_b?: number; p_c?: number; in_stock?: boolean; archived?: boolean }
+): Promise<boolean> {
+  try {
+    const { error } = await supabase.from('products').update(updates).eq('id', id)
+    return !error
+  } catch {
+    return false
+  }
+}
+
+// ── Orders ───────────────────────────────────────────────────────────────────
 export async function createOrderApi(order: Order): Promise<boolean> {
   try {
     const { error: orderErr } = await supabase.from('orders').insert({
@@ -37,17 +53,21 @@ export async function createOrderApi(order: Order): Promise<boolean> {
       phone: order.phone,
       order_type: order.orderType,
       table_no: order.tableNo || null,
-      address: order.address,
+      address: order.address || null,
+      subtotal: order.subtotal,
+      delivery_fee: order.deliveryFee || 0,
+      discount_amount: order.discountAmount || 0,
       total: order.total,
       advance_amount: order.advanceAmount,
-      discount_amount: order.discountAmount,
-      utr: order.utr,
-      utr_verified: order.utrVerified,
+      utr: order.utr || null,
+      utr_verified: false,
       status: order.status,
+      delivery_slot: order.deliverySlot || 'instant',
+      created_at: order.createdAt,
     })
 
     if (orderErr) {
-      console.warn('Supabase insert order error, saved locally:', orderErr)
+      console.warn('Supabase insert order error:', orderErr)
       return false
     }
 
@@ -59,14 +79,15 @@ export async function createOrderApi(order: Order): Promise<boolean> {
         portion: it.portion,
         qty: it.qty,
         unit_price: it.unitPrice,
-        emoji: it.emoji,
+        emoji: it.emoji || '🍽️',
       }))
-      await supabase.from('order_items').insert(itemsToInsert)
+      const { error: itemErr } = await supabase.from('order_items').insert(itemsToInsert)
+      if (itemErr) console.warn('Order items insert error:', itemErr)
     }
 
     return true
   } catch (err) {
-    console.warn('API error, fallback to local storage:', err)
+    console.warn('createOrderApi error:', err)
     return false
   }
 }
@@ -86,20 +107,23 @@ export async function fetchOrdersApi(): Promise<Order[]> {
       userName: d.user_name,
       phone: d.phone,
       orderType: d.order_type || 'dine_in',
-      tableNo: d.table_no,
-      address: d.address,
+      tableNo: d.table_no || '',
+      address: d.address || '',
+      subtotal: Number(d.subtotal || 0),
       total: Number(d.total),
-      advanceAmount: Number(d.advance_amount),
+      advanceAmount: Number(d.advance_amount || 0),
       deliveryFee: Number(d.delivery_fee || 0),
       discountAmount: Number(d.discount_amount || 0),
-      subtotal: Number(d.total) - Number(d.delivery_fee || 0) + Number(d.discount_amount || 0),
-      utr: d.utr,
+      utr: d.utr || '',
       utrVerified: Boolean(d.utr_verified),
       status: d.status as OrderStatus,
+      deliverySlot: d.delivery_slot || 'instant',
       createdAt: d.created_at,
+      updatedAt: d.updated_at || null,
       items: (d.order_items || []).map((it: any) => ({
         productId: it.product_id,
         name: it.name,
+        bnName: it.bn_name || it.name,
         portion: it.portion,
         qty: Number(it.qty),
         unitPrice: Number(it.unit_price),
@@ -113,7 +137,10 @@ export async function fetchOrdersApi(): Promise<Order[]> {
 
 export async function updateOrderStatusApi(orderId: string, status: OrderStatus): Promise<boolean> {
   try {
-    const { error } = await supabase.from('orders').update({ status }).eq('id', orderId)
+    const { error } = await supabase
+      .from('orders')
+      .update({ status, updated_at: new Date().toISOString() })
+      .eq('id', orderId)
     return !error
   } catch {
     return false
@@ -124,7 +151,11 @@ export async function verifyUtrApi(orderId: string, verified: boolean): Promise<
   try {
     const { error } = await supabase
       .from('orders')
-      .update({ utr_verified: verified, status: verified ? 'cooking' : 'pending' })
+      .update({
+        utr_verified: verified,
+        status: verified ? 'confirmed' : 'pending',
+        updated_at: new Date().toISOString(),
+      })
       .eq('id', orderId)
     return !error
   } catch {
@@ -134,6 +165,7 @@ export async function verifyUtrApi(orderId: string, verified: boolean): Promise<
 
 export async function deleteOrderApi(orderId: string): Promise<boolean> {
   try {
+    await supabase.from('order_items').delete().eq('order_id', orderId)
     const { error } = await supabase.from('orders').delete().eq('id', orderId)
     return !error
   } catch {
@@ -141,7 +173,11 @@ export async function deleteOrderApi(orderId: string): Promise<boolean> {
   }
 }
 
-export async function validateCouponApi(code: string, orderTotal: number): Promise<{ valid: boolean; discount: number; message: string }> {
+// ── Coupons ──────────────────────────────────────────────────────────────────
+export async function validateCouponApi(
+  code: string,
+  orderTotal: number
+): Promise<{ valid: boolean; discount: number; message: string }> {
   try {
     const { data, error } = await supabase
       .from('coupons')
@@ -150,18 +186,32 @@ export async function validateCouponApi(code: string, orderTotal: number): Promi
       .eq('valid', true)
       .single()
 
-    if (error || !data) return { valid: false, discount: 0, message: 'Invalid or expired coupon code.' }
+    if (error || !data) return { valid: false, discount: 0, message: '❌ Invalid or expired coupon code.' }
     if (data.min_order > 0 && orderTotal < data.min_order) {
       return { valid: false, discount: 0, message: `Minimum order ₹${data.min_order} required for this coupon.` }
     }
 
-    const discount = data.discount_type === 'flat'
-      ? Math.min(data.discount_value, orderTotal)
-      : Math.round((orderTotal * data.discount_value) / 100)
+    const discount =
+      data.discount_type === 'flat'
+        ? Math.min(data.discount_value, orderTotal)
+        : Math.round((orderTotal * data.discount_value) / 100)
 
-    return { valid: true, discount, message: `🎉 Coupon applied! You save ₹${discount}.` }
+    return { valid: true, discount, message: `🎉 ₹${discount} off applied!` }
   } catch {
-    return { valid: false, discount: 0, message: 'Could not validate coupon. Try again.' }
+    return { valid: false, discount: 0, message: '❌ Could not validate coupon. Try again.' }
   }
 }
 
+// ── Profiles (Admin staff management) ────────────────────────────────────────
+export async function fetchAllProfilesApi() {
+  try {
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('id, phone, name, role, is_blocked, created_at')
+      .order('created_at', { ascending: false })
+    if (error) return []
+    return data || []
+  } catch {
+    return []
+  }
+}

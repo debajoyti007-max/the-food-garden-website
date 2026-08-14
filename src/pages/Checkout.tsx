@@ -168,7 +168,7 @@ export default function Checkout() {
             🎟️ Apply Promo Coupon:
           </label>
           <div style={{ display: 'flex', gap: '0.5rem' }}>
-            <input type="text" value={couponCode} onChange={(e) => setCouponCode(e.target.value.toUpperCase())} placeholder="Try: TFG50 or WELCOME10" style={{ flex: 1, padding: '0.6rem 0.8rem', borderRadius: '8px', background: '#18181b', border: '1px solid #3f3f46', color: '#fff', fontWeight: 700 }} />
+            <input type="text" value={couponCode} onChange={(e) => setCouponCode(e.target.value.toUpperCase())} placeholder="Enter promo code..." style={{ flex: 1, padding: '0.6rem 0.8rem', borderRadius: '8px', background: '#18181b', border: '1px solid #3f3f46', color: '#fff', fontWeight: 700 }} />
             <button type="button" onClick={handleApplyCoupon} style={{ padding: '0.6rem 1.1rem', background: '#f59e0b', color: '#18181b', border: 'none', borderRadius: '8px', fontWeight: 800, cursor: 'pointer' }}>
               Apply
             </button>

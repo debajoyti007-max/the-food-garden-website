@@ -1,16 +1,21 @@
 import { useEffect, useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { useStore } from '../context/StoreContext'
-import { formatOrderId, STORE_NAME } from '../lib/business'
+import { useAuth } from '../context/AuthContext'
+import { formatOrderId } from '../lib/business'
 
 export default function DynamicIsland() {
   const { cartCount, cartTotal, orders } = useStore()
+  const { user } = useAuth()
   const location = useLocation()
-  const [expanded, setExpanded] = useState(false)
   const [justAdded, setJustAdded] = useState(false)
 
-  // Find latest active order if exists
-  const activeOrder = orders.find((o) => o.status !== 'delivered' && o.status !== 'cancelled')
+  // Find latest active order that belongs to the current user
+  const activeOrder = orders.find((o) => {
+    const isOwner = user ? (o.phone === user.phone || o.userId === user.id) : true
+    const isActive = o.status !== 'delivered' && o.status !== 'cancelled'
+    return isOwner && isActive
+  })
 
   useEffect(() => {
     if (cartCount > 0) {
@@ -20,8 +25,15 @@ export default function DynamicIsland() {
     }
   }, [cartCount])
 
-  // Don't show inside cart or checkout to avoid distraction
-  if (location.pathname === '/cart' || location.pathname === '/checkout') return null
+  // Don't show inside cart, checkout, or auth to avoid distraction
+  if (location.pathname === '/cart' || location.pathname === '/checkout' || location.pathname === '/auth') {
+    return null
+  }
+
+  // Only render Dynamic Island when there is an active order or active cart items
+  if (!activeOrder && cartCount === 0) {
+    return null
+  }
 
   return (
     <div
@@ -37,16 +49,15 @@ export default function DynamicIsland() {
     >
       <div
         className={`dynamic-island ${justAdded ? 'island-pulse' : ''}`}
-        onClick={() => setExpanded(!expanded)}
         style={{
-          background: 'rgba(18, 18, 20, 0.92)',
+          background: 'rgba(18, 18, 20, 0.94)',
           backdropFilter: 'blur(24px)',
           WebkitBackdropFilter: 'blur(24px)',
           border: '1.5px solid rgba(245, 158, 11, 0.35)',
           borderRadius: '26px',
           boxShadow: '0 10px 30px rgba(0, 0, 0, 0.5), 0 0 20px rgba(245, 158, 11, 0.15)',
           color: '#fafaf9',
-          padding: expanded ? '0.75rem 1.25rem' : '0.45rem 1rem',
+          padding: '0.45rem 1rem',
           display: 'flex',
           alignItems: 'center',
           gap: '0.75rem',
@@ -59,9 +70,8 @@ export default function DynamicIsland() {
         {activeOrder ? (
           // 🛵 Live Order Tracking Pill
           <Link
-            to="/track"
+            to={`/track?id=${activeOrder.id}`}
             style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', textDecoration: 'none', color: '#fafaf9', width: '100%' }}
-            onClick={(e) => e.stopPropagation()}
           >
             <div style={{ width: '26px', height: '26px', borderRadius: '50%', background: '#f59e0b', color: '#18181b', display: 'grid', placeItems: 'center', fontSize: '0.85rem', fontWeight: 900 }}>
               👨‍🍳
@@ -71,19 +81,22 @@ export default function DynamicIsland() {
                 LIVE ORDER #{formatOrderId(activeOrder.id)}
               </div>
               <div style={{ fontSize: '0.72rem', color: '#a1a1aa' }}>
-                {activeOrder.status === 'pending' ? 'Verifying payment...' : activeOrder.status === 'cooking' ? 'Cooking fresh in kitchen 🔥' : 'Ready to Serve 🍽️'}
+                {activeOrder.status === 'pending'
+                  ? 'Verifying payment...'
+                  : activeOrder.status === 'cooking'
+                  ? 'Cooking fresh in kitchen 🔥'
+                  : 'Ready to Serve 🍽️'}
               </div>
             </div>
             <span style={{ fontSize: '0.75rem', background: '#27272a', padding: '2px 8px', borderRadius: '12px', color: '#fafaf9', fontWeight: 700 }}>
               Track ➔
             </span>
           </Link>
-        ) : cartCount > 0 ? (
+        ) : (
           // 🛒 Active Cart Floating Pill
           <Link
             to="/cart"
             style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', textDecoration: 'none', color: '#fafaf9', width: '100%' }}
-            onClick={(e) => e.stopPropagation()}
           >
             <div style={{ position: 'relative' }}>
               <span style={{ fontSize: '1.2rem' }}>🛒</span>
@@ -125,14 +138,6 @@ export default function DynamicIsland() {
               Order ➔
             </span>
           </Link>
-        ) : (
-          // 🌿 Idle Restaurant Island
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', fontSize: '0.8rem' }}>
-            <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#22c55e', display: 'inline-block', boxShadow: '0 0 8px #22c55e' }} />
-            <strong style={{ color: '#fafaf9', letterSpacing: '-0.01em' }}>{STORE_NAME}</strong>
-            <span style={{ color: '#71717a' }}>|</span>
-            <span style={{ color: '#f59e0b', fontSize: '0.75rem', fontWeight: 700 }}>Open till 12 AM</span>
-          </div>
         )}
       </div>
     </div>
