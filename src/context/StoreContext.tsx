@@ -3,6 +3,15 @@ import type { CartItem, Coupon, Lang, MenuItem, Order, OrderStatus, Portion } fr
 import { SEED_MENU } from '../data/seed'
 import { showToast } from '../components/Toast'
 import { ADVANCE_PERCENT } from '../lib/business'
+import {
+  createOrderApi,
+  deleteOrderApi,
+  fetchOrdersApi,
+  fetchProductsApi,
+  updateOrderStatusApi,
+  verifyUtrApi,
+} from '../lib/api'
+import { supabase } from '../lib/supabase'
 
 interface StoreContextType {
   menu: MenuItem[]
@@ -68,6 +77,33 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     localStorage.setItem('tfg_lang', l)
   }
 
+  // Load from Supabase on mount
+  useEffect(() => {
+    fetchProductsApi().then((data) => {
+      if (data && data.length > 0) setMenu(data)
+    })
+
+    fetchOrdersApi().then((dbOrders) => {
+      if (dbOrders && dbOrders.length > 0) {
+        setOrders(dbOrders)
+      }
+    })
+
+    // Realtime orders subscription
+    const channel = supabase
+      .channel('public:orders')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, () => {
+        fetchOrdersApi().then((dbOrders) => {
+          if (dbOrders) setOrders(dbOrders)
+        })
+      })
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(channel)
+    }
+  }, [])
+
   useEffect(() => {
     localStorage.setItem('tfg_menu_v5', JSON.stringify(menu))
   }, [menu])
@@ -88,13 +124,15 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   }
 
   const addToCart = (productId: string, portion: Portion, qty = 1) => {
-    const item = menu.find(m => m.id === productId)
+    const item = menu.find((m) => m.id === productId)
     if (!item || !item.inStock) return
 
-    setCart(prev => {
-      const existing = prev.find(c => c.productId === productId && c.portion === portion)
+    setCart((prev) => {
+      const existing = prev.find((c) => c.productId === productId && c.portion === portion)
       if (existing) {
-        return prev.map(c => c.productId === productId && c.portion === portion ? { ...c, qty: c.qty + qty } : c)
+        return prev.map((c) =>
+          c.productId === productId && c.portion === portion ? { ...c, qty: c.qty + qty } : c,
+        )
       }
       return [...prev, { productId, portion, qty }]
     })
@@ -107,24 +145,26 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       removeFromCart(productId, portion)
       return
     }
-    setCart(prev => prev.map(c => c.productId === productId && c.portion === portion ? { ...c, qty } : c))
+    setCart((prev) =>
+      prev.map((c) => (c.productId === productId && c.portion === portion ? { ...c, qty } : c)),
+    )
   }
 
   const removeFromCart = (productId: string, portion: Portion) => {
-    setCart(prev => prev.filter(c => !(c.productId === productId && c.portion === portion)))
+    setCart((prev) => prev.filter((c) => !(c.productId === productId && c.portion === portion)))
   }
 
   const clearCart = () => setCart([])
 
   const cartCount = cart.reduce((s, c) => s + c.qty, 0)
   const cartTotal = cart.reduce((s, c) => {
-    const p = menu.find(m => m.id === c.productId)
+    const p = menu.find((m) => m.id === c.productId)
     return s + (p ? priceFor(p, c.portion) * c.qty : 0)
   }, 0)
 
   const placeOrder = async (orderData: Partial<Order>): Promise<Order> => {
-    const orderItems = cart.map(c => {
-      const p = menu.find(m => m.id === c.productId)!
+    const orderItems = cart.map((c) => {
+      const p = menu.find((m) => m.id === c.productId)!
       return {
         productId: c.productId,
         name: p.name,
@@ -137,7 +177,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     })
 
     const subtotal = cartTotal
-    const deliveryFee = orderData.orderType === 'delivery' ? (orderData.deliveryFee || 30) : 0
+    const deliveryFee = orderData.orderType === 'delivery' ? orderData.deliveryFee || 30 : 0
     const discount = orderData.discountAmount || 0
     const total = Math.max(0, subtotal + deliveryFee - discount)
     const advanceAmount = Math.ceil(total * ADVANCE_PERCENT)
@@ -164,37 +204,67 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       createdAt: new Date().toISOString(),
     }
 
-    setOrders(prev => [newOrder, ...prev])
+    // Save locally and in Supabase
+    setOrders((prev) => [newOrder, ...prev])
     clearCart()
+    await createOrderApi(newOrder)
+
     showToast('🎉 Order placed successfully!', '✅')
     return newOrder
   }
 
   const updateOrderStatus = async (orderId: string, status: OrderStatus) => {
-    setOrders(prev => prev.map(o => o.id === orderId ? { ...o, status, updatedAt: new Date().toISOString() } : o))
+    setOrders((prev) =>
+      prev.map((o) => (o.id === orderId ? { ...o, status, updatedAt: new Date().toISOString() } : o)),
+    )
+    await updateOrderStatusApi(orderId, status)
   }
 
   const verifyUtr = async (orderId: string, verified: boolean) => {
-    setOrders(prev => prev.map(o => o.id === orderId ? { ...o, utrVerified: verified, status: verified ? 'confirmed' : o.status } : o))
+    setOrders((prev) =>
+      prev.map((o) =>
+        o.id === orderId
+          ? { ...o, utrVerified: verified, status: verified ? 'cooking' : o.status }
+          : o,
+      ),
+    )
+    await verifyUtrApi(orderId, verified)
   }
 
   const deleteOrder = async (orderId: string) => {
-    setOrders(prev => prev.filter(o => o.id !== orderId))
+    setOrders((prev) => prev.filter((o) => o.id !== orderId))
+    await deleteOrderApi(orderId)
   }
 
   const validateCoupon = async (code: string, orderTotal: number): Promise<Coupon | null> => {
     const clean = code.trim().toUpperCase()
     if (clean === 'TFG50') {
-      return { code: 'TFG50', discount_type: 'flat', discount_value: 50, min_order: 300, valid: true, discount: 50, message: '✅ ₹50 Off Applied!' }
+      return {
+        code: 'TFG50',
+        discount_type: 'flat',
+        discount_value: 50,
+        min_order: 300,
+        valid: true,
+        discount: 50,
+        message: '✅ ₹50 Off Applied!',
+      }
     }
     if (clean === 'WELCOME10') {
       const disc = Math.round(orderTotal * 0.1)
-      return { code: 'WELCOME10', discount_type: 'percent', discount_value: 10, min_order: 200, valid: true, discount: disc, message: '✅ 10% Off Applied!' }
+      return {
+        code: 'WELCOME10',
+        discount_type: 'percent',
+        discount_value: 10,
+        min_order: 200,
+        valid: true,
+        discount: disc,
+        message: '✅ 10% Off Applied!',
+      }
     }
     return null
   }
 
-  const createCoupon = async (coupon: Coupon) => {
+  const createCoupon = async (_coupon: Coupon) => {
     return true
   }
 

@@ -1,0 +1,17 @@
+{
+  "name": "The Food Garden — Family Restaurant & Cafe",
+  "short_name": "Food Garden",
+  "description": "Order Dum Biryani, Tandoori Kebabs, Pasta & Mocktails from The Food Garden on Nandakumar-Digha Road.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#121214",
+  "theme_color": "#18181b",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "192x192 512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
