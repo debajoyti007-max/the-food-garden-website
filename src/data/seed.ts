@@ -27,8 +27,8 @@ export const SEED_MENU: MenuItem[] = [
     pB: 340,
     pC: 220,
     inStock: true,
-    imageUrl: '/tfg-biryani.jpg',
-    description: 'Tender marinated mutton pieces cooked with scented saffron rice, egg, and spiced potato.',
+    imageUrl: '/tfg-mutton-biryani.jpg',
+    description: 'Tender marinated mutton shank pieces cooked with scented saffron rice, roasted potato, and egg.',
   },
   {
     id: 'tfg-3',
@@ -71,8 +71,8 @@ export const SEED_MENU: MenuItem[] = [
     pB: 220, // 4 pcs
     pC: 120,
     inStock: true,
-    imageUrl: '/tfg-tandoori.jpg',
-    description: 'Juicy melt-in-mouth chicken cubes marinated in cashew cream, cheese, and mild aromatic herbs.',
+    imageUrl: '/tfg-reshmi-kebab.jpg',
+    description: 'Juicy melt-in-mouth chicken cubes on skewers marinated in cashew cream, cheese, and mild herbs.',
   },
   {
     id: 'tfg-6',
@@ -145,7 +145,7 @@ export const SEED_MENU: MenuItem[] = [
     pB: 60,
     pC: 45,
     inStock: true,
-    imageUrl: '/tfg-butter-chicken.jpg',
+    imageUrl: '/tfg-garlic-naan.jpg',
     description: 'Clay tandoor baked artisan flatbread brushed with garlic butter and fresh cilantro.',
   },
 
