@@ -1,15 +1,21 @@
-@import url('https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@400;500;600;700&family=Poppins:wght@400;500;600;700;800;900&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&display=swap');
 
 :root {
-  --bg-main: #18181b;
-  --surface: #27272a;
+  --bg-main: #121214;
+  --surface: #1c1917;
+  --surface-hover: #27272a;
   --primary: #f59e0b;
   --primary-hover: #d97706;
+  --primary-glow: rgba(245, 158, 11, 0.35);
   --garden-accent: #15803d;
   --text-light: #fafaf9;
   --text-muted: #a1a1aa;
-  --border-line: #3f3f46;
-  --font-family: 'Poppins', 'Hind Siliguri', system-ui, -apple-system, sans-serif;
+  --border-line: rgba(255, 255, 255, 0.08);
+  --border-active: rgba(245, 158, 11, 0.4);
+  --radius-sm: 8px;
+  --radius-md: 14px;
+  --radius-lg: 22px;
+  --font-family: 'Plus Jakarta Sans', 'Hind Siliguri', system-ui, -apple-system, sans-serif;
 }
 
 * {
@@ -39,14 +45,88 @@ button, input, select {
 }
 
 button:active {
-  transform: scale(0.98);
+  transform: scale(0.96);
+}
+
+/* 💎 Food Card Animations */
+.food-card {
+  transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.3s ease, border-color 0.3s ease;
 }
 
 .food-card:hover {
-  transform: translateY(-4px);
+  transform: translateY(-6px);
   border-color: var(--primary) !important;
+  box-shadow: 0 16px 36px rgba(0, 0, 0, 0.5), 0 0 20px rgba(245, 158, 11, 0.15) !important;
 }
 
+.food-card:hover .food-img-hover {
+  transform: scale(1.06);
+}
+
+/* 🏝️ Dynamic Island Animations */
+.dynamic-island {
+  animation: islandSlideDown 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+@keyframes islandSlideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-20px) scale(0.85);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.island-pulse {
+  animation: islandPulse 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+@keyframes islandPulse {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.08); box-shadow: 0 0 35px rgba(245, 158, 11, 0.6); }
+  100% { transform: scale(1); }
+}
+
+/* 🔍 Popup Modal Pop Animation */
+.modal-pop {
+  animation: modalPop 0.28s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes modalPop {
+  from {
+    opacity: 0;
+    transform: scale(0.88) translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+/* 💬 Floating WhatsApp Button Pulse */
+.whatsapp-float:hover {
+  transform: scale(1.1) rotate(5deg);
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #121214;
+}
+::-webkit-scrollbar-thumb {
+  background: #27272a;
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #3f3f46;
+}
+
+/* Responsive Navigation */
 @media (min-width: 769px) {
   .mobile-bottom-bar {
     display: none !important;
@@ -56,5 +136,8 @@ button:active {
 @media (max-width: 768px) {
   .desktop-nav {
     display: none !important;
+  }
+  .dynamic-island-container {
+    top: 6px !important;
   }
 }
