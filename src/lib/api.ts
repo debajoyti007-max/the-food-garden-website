@@ -53,8 +53,12 @@ export async function upsertProductApi(item: MenuItem): Promise<boolean> {
       archived: item.archived ?? false,
       description: item.description || '',
     })
+    if (error) {
+      console.error('[TFG] upsertProductApi failed:', error.message, error.code, error.details)
+    }
     return !error
-  } catch {
+  } catch (err) {
+    console.error('[TFG] upsertProductApi exception:', err)
     return false
   }
 }
@@ -204,7 +208,9 @@ export async function verifyUtrApi(orderId: string, verified: boolean): Promise<
       .from('orders')
       .update({
         utr_verified: verified,
-        status: verified ? 'confirmed' : 'pending',
+        // When verified: go straight to 'cooking' so kitchen gets the KOT immediately
+        // When unverified/rejected: back to 'pending'
+        status: verified ? 'cooking' : 'pending',
         updated_at: new Date().toISOString(),
       })
       .eq('id', orderId)
