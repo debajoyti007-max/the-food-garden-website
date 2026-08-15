@@ -27,6 +27,7 @@ export async function fetchProductsApi(): Promise<MenuItem[]> {
       pB: Number(d.p_b) || 0,
       pC: Number(d.p_c) || 0,
       inStock: d.in_stock ?? true,
+      isVeg: d.is_veg ?? false,
       imageUrl: d.image_url || null,
       archived: d.archived ?? false,
       description: d.description || '',
@@ -49,6 +50,7 @@ export async function upsertProductApi(item: MenuItem): Promise<boolean> {
       p_b: item.pB,
       p_c: item.pC,
       in_stock: item.inStock,
+      is_veg: item.isVeg ?? false,
       image_url: item.imageUrl || null,
       archived: item.archived ?? false,
       description: item.description || '',
@@ -76,6 +78,7 @@ async function seedDatabaseWithMenu(items: MenuItem[]) {
       p_b: it.pB,
       p_c: it.pC,
       in_stock: it.inStock,
+      is_veg: it.isVeg ?? false,
       image_url: it.imageUrl || null,
       archived: it.archived ?? false,
       description: it.description || '',
@@ -230,11 +233,19 @@ export async function deleteOrderApi(orderId: string): Promise<boolean> {
   }
 }
 
-// ── Coupons ──────────────────────────────────────────────────────────────────
+// ── Coupons with Smart Rate Limiting ─────────────────────────────────────────
+let couponAttempts: { count: number; lockedUntil: number } = { count: 0, lockedUntil: 0 }
+
 export async function validateCouponApi(
   code: string,
   orderTotal: number
 ): Promise<{ valid: boolean; discount: number; message: string }> {
+  const now = Date.now()
+  if (couponAttempts.lockedUntil > now) {
+    const secondsLeft = Math.ceil((couponAttempts.lockedUntil - now) / 1000)
+    return { valid: false, discount: 0, message: `⏳ Too many attempts. Try again in ${secondsLeft}s.` }
+  }
+
   try {
     const { data, error } = await supabase
       .from('coupons')
@@ -243,7 +254,17 @@ export async function validateCouponApi(
       .eq('valid', true)
       .single()
 
-    if (error || !data) return { valid: false, discount: 0, message: '❌ Invalid or expired coupon code.' }
+    if (error || !data) {
+      couponAttempts.count += 1
+      if (couponAttempts.count >= 4) {
+        couponAttempts = { count: 0, lockedUntil: Date.now() + 60 * 1000 } // 60s cooldown
+      }
+      return { valid: false, discount: 0, message: '❌ Invalid or expired coupon code.' }
+    }
+
+    // Success -> reset cooldown
+    couponAttempts = { count: 0, lockedUntil: 0 }
+
     if (data.min_order > 0 && orderTotal < data.min_order) {
       return { valid: false, discount: 0, message: `Minimum order ₹${data.min_order} required for this coupon.` }
     }

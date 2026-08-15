@@ -9,10 +9,11 @@ export const SEED_MENU: MenuItem[] = [
     emoji: '🍗',
     category: 'Biryani & Rice',
     unit: 'plate',
-    pA: 380, // Family Pack (2 Chicken + 2 Eggs + 2 Alu)
-    pB: 220, // Full Plate (1 Big Chicken + Egg + Alu)
-    pC: 140, // Half Plate
+    pA: 380,
+    pB: 220,
+    pC: 140,
     inStock: true,
+    isVeg: false,
     imageUrl: '/tfg-biryani.jpg',
     description: 'Aromatic long-grain basmati rice cooked on dum with succulent chicken, egg, and spiced potato.',
   },
@@ -27,6 +28,7 @@ export const SEED_MENU: MenuItem[] = [
     pB: 340,
     pC: 220,
     inStock: true,
+    isVeg: false,
     imageUrl: '/tfg-mutton-biryani.jpg',
     description: 'Tender marinated mutton shank pieces cooked with scented saffron rice, roasted potato, and egg.',
   },
@@ -41,6 +43,7 @@ export const SEED_MENU: MenuItem[] = [
     pB: 260,
     pC: 180,
     inStock: true,
+    isVeg: false,
     imageUrl: '/tfg-chinese.jpg',
     description: 'Wok-tossed egg chicken fried rice served with sizzling hot garlic chilli chicken.',
   },
@@ -53,10 +56,11 @@ export const SEED_MENU: MenuItem[] = [
     emoji: '🍗',
     category: 'Tandoori & Starters',
     unit: 'portion',
-    pA: 440, // Full (4 pcs)
-    pB: 240, // Half (2 pcs)
-    pC: 130, // Quarter (1 pc)
+    pA: 440,
+    pB: 240,
+    pC: 130,
     inStock: true,
+    isVeg: false,
     imageUrl: '/tfg-tandoori.jpg',
     description: 'Fresh chicken roasted in clay tandoor marinated with hung curd, lemon, and Kashmiri red spices.',
   },
@@ -67,10 +71,11 @@ export const SEED_MENU: MenuItem[] = [
     emoji: '🍢',
     category: 'Tandoori & Starters',
     unit: 'portion',
-    pA: 380, // 8 pcs
-    pB: 220, // 4 pcs
+    pA: 380,
+    pB: 220,
     pC: 120,
     inStock: true,
+    isVeg: false,
     imageUrl: '/tfg-reshmi-kebab.jpg',
     description: 'Juicy melt-in-mouth chicken cubes on skewers marinated in cashew cream, cheese, and mild herbs.',
   },
@@ -85,6 +90,7 @@ export const SEED_MENU: MenuItem[] = [
     pB: 180,
     pC: 110,
     inStock: true,
+    isVeg: true,
     imageUrl: 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=600&auto=format&fit=crop',
     description: 'Golden fried baby corns tossed in spicy Indo-Chinese chilli garlic sauce and scallions.',
   },
@@ -101,7 +107,8 @@ export const SEED_MENU: MenuItem[] = [
     pB: 220,
     pC: 160,
     inStock: true,
-    imageUrl: 'https://images.unsplash.com/photo-1621996346565-e3d5d6281696?w=600&auto=format&fit=crop',
+    isVeg: false,
+    imageUrl: '/tfg-chicken-pasta.jpg',
     description: 'Cheesy rich Alfredo penne pasta with garlic, herbs, sweet corn, and chicken chunks.',
   },
   {
@@ -111,10 +118,11 @@ export const SEED_MENU: MenuItem[] = [
     emoji: '🍔',
     category: 'Cafe & Continental',
     unit: 'meal',
-    pA: 260, // With Fries + Cold Drink
-    pB: 170, // With Fries
-    pC: 110, // Burger Only
+    pA: 260,
+    pB: 170,
+    pC: 110,
     inStock: true,
+    isVeg: false,
     imageUrl: 'https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=600&auto=format&fit=crop',
     description: 'Double golden fried chicken patties with melted cheddar cheese and spicy mayo.',
   },
@@ -127,10 +135,11 @@ export const SEED_MENU: MenuItem[] = [
     emoji: '🍛',
     category: 'Main Course',
     unit: 'handi',
-    pA: 420, // Full Handi
-    pB: 260, // Half Handi
+    pA: 420,
+    pB: 260,
     pC: 150,
     inStock: true,
+    isVeg: false,
     imageUrl: '/tfg-butter-chicken.jpg',
     description: 'Smoked tandoori chicken cooked in rich velvety makhani butter and fresh tomato gravy.',
   },
@@ -145,6 +154,7 @@ export const SEED_MENU: MenuItem[] = [
     pB: 60,
     pC: 45,
     inStock: true,
+    isVeg: true,
     imageUrl: '/tfg-garlic-naan.jpg',
     description: 'Clay tandoor baked artisan flatbread brushed with garlic butter and fresh cilantro.',
   },
@@ -161,6 +171,7 @@ export const SEED_MENU: MenuItem[] = [
     pB: 120,
     pC: 80,
     inStock: true,
+    isVeg: true,
     imageUrl: 'https://images.unsplash.com/photo-1513558161293-cdaf765ed2fd?w=600&auto=format&fit=crop',
     description: 'Chilled blue curacao citrus mocktail with fresh mint leaves and sparkling soda.',
   },
@@ -175,6 +186,7 @@ export const SEED_MENU: MenuItem[] = [
     pB: 50,
     pC: 30,
     inStock: true,
+    isVeg: true,
     imageUrl: 'https://images.unsplash.com/photo-1544787219-7f47ccb76574?w=600&auto=format&fit=crop',
     description: 'Smoky cardamom milk tea brewed hot in a roasted earthen kulhad pot.',
   },

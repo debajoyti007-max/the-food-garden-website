@@ -13,6 +13,7 @@ export interface User {
   role: UserRole
   isBlocked?: boolean
   createdAt?: string
+  lastActiveAt?: string
 }
 
 export interface MenuItem {
@@ -26,6 +27,7 @@ export interface MenuItem {
   pB: number // Full Plate
   pC: number // Half Plate / Regular
   inStock: boolean
+  isVeg?: boolean
   stockQty?: number
   imageUrl?: string
   archived?: boolean

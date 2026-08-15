@@ -72,9 +72,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           const refreshed = ensureAdminRole({
             id: data.id, phone: data.phone, name: data.name,
             role: data.role as UserRole, createdAt: data.created_at,
+            lastActiveAt: data.last_active_at || data.created_at,
           })
           setUser(refreshed)
           userRef.current = refreshed
+          // Touch last_active_at in background to keep account alive
+          void supabase.from('profiles').update({ last_active_at: new Date().toISOString() }).eq('id', data.id)
         } else {
           setUser(null); userRef.current = null
         }
@@ -111,11 +114,51 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => { supabase.removeChannel(channel) }
   }, [user?.id])
 
+  // ── Rate Limit Helper ──────────────────────────────────────────────────
+  const checkRateLimit = (phone: string): { blocked: boolean; minutesLeft?: number } => {
+    try {
+      const attemptsKey = `tfg_auth_attempts_${phone}`
+      const record = JSON.parse(localStorage.getItem(attemptsKey) || '{"count":0,"lockedUntil":0}')
+      const now = Date.now()
+      if (record.lockedUntil && record.lockedUntil > now) {
+        const minutesLeft = Math.ceil((record.lockedUntil - now) / 60000)
+        return { blocked: true, minutesLeft }
+      }
+      return { blocked: false }
+    } catch {
+      return { blocked: false }
+    }
+  }
+
+  const recordFailedAttempt = (phone: string) => {
+    try {
+      const attemptsKey = `tfg_auth_attempts_${phone}`
+      const record = JSON.parse(localStorage.getItem(attemptsKey) || '{"count":0,"lockedUntil":0}')
+      const count = (record.count || 0) + 1
+      if (count >= 5) {
+        // Lock for 15 minutes
+        localStorage.setItem(attemptsKey, JSON.stringify({ count: 0, lockedUntil: Date.now() + 15 * 60 * 1000 }))
+      } else {
+        localStorage.setItem(attemptsKey, JSON.stringify({ count, lockedUntil: 0 }))
+      }
+    } catch {}
+  }
+
+  const clearFailedAttempts = (phone: string) => {
+    try { localStorage.removeItem(`tfg_auth_attempts_${phone}`) } catch {}
+  }
+
   // ── LOGIN ──────────────────────────────────────────────────────────────
   const login = useCallback(async (phone: string, pin: string): Promise<AuthResult> => {
     const cleanPhone = phone.replace(/\D/g, '')
     if (cleanPhone.length < 10) return { ok: false, error: 'Enter valid 10-digit phone number' }
     if (!pin || pin.length !== 4) return { ok: false, error: 'Enter your 4-digit PIN' }
+
+    // Check brute force lockout
+    const rateLimit = checkRateLimit(cleanPhone)
+    if (rateLimit.blocked) {
+      return { ok: false, error: `🔒 Too many failed attempts. Account locked for ${rateLimit.minutesLeft} minutes.` }
+    }
 
     try {
       // 1. Quick local PIN check (works offline too)
@@ -124,6 +167,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const { data, error } = await supabase.from('profiles').select('*').eq('phone', cleanPhone).single()
 
       if (error || !data) {
+        recordFailedAttempt(cleanPhone)
         return { ok: false, error: "No account found. Please register first." }
       }
 
@@ -136,19 +180,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const pinMatch = pin === dbPin || pin === localPin
 
       if (!pinMatch) {
-        return { ok: false, error: '❌ Incorrect PIN. Forgot it? Use "Reset PIN" below.' }
+        recordFailedAttempt(cleanPhone)
+        return { ok: false, error: '❌ Incorrect PIN. (5 failed attempts will lock login for 15 min)' }
       }
+
+      // Success -> clear failed attempts
+      clearFailedAttempts(cleanPhone)
 
       // Sync PIN cache
       storePin(cleanPhone, pin)
-      // Sync DB if local cache diverged
-      if (dbPin !== pin) {
-        void supabase.from('profiles').update({ pin }).eq('id', data.id)
-      }
+      // Sync DB if local cache diverged & touch last_active_at
+      const updatePayload: Record<string, any> = { last_active_at: new Date().toISOString() }
+      if (dbPin !== pin) updatePayload.pin = pin
+      void supabase.from('profiles').update(updatePayload).eq('id', data.id)
 
       const loggedIn = ensureAdminRole({
         id: data.id, phone: data.phone, name: data.name || `User ${cleanPhone.slice(-4)}`,
         role: (data.role as UserRole) || 'customer', createdAt: data.created_at,
+        lastActiveAt: new Date().toISOString(),
       })
 
       setUser(loggedIn); userRef.current = loggedIn
@@ -172,15 +221,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       const role = SUPER_ADMIN_PHONES.includes(cleanPhone) ? 'admin' : 'customer'
       const newId = crypto.randomUUID()
+      const nowIso = new Date().toISOString()
 
       const { error } = await supabase.from('profiles').insert({
-        id: newId, phone: cleanPhone, name: name.trim(), pin, role,
+        id: newId, phone: cleanPhone, name: name.trim(), pin, role, last_active_at: nowIso,
       })
       if (error) return { ok: false, error: error.message || 'Registration failed. Try again.' }
 
       storePin(cleanPhone, pin)
 
-      const newUser: User = { id: newId, phone: cleanPhone, name: name.trim(), role: role as UserRole, createdAt: new Date().toISOString() }
+      const newUser: User = { id: newId, phone: cleanPhone, name: name.trim(), role: role as UserRole, createdAt: nowIso, lastActiveAt: nowIso }
       setUser(newUser); userRef.current = newUser
       showToast(`Welcome to The Food Garden, ${newUser.name}!`, '🎉')
       return { ok: true, user: newUser }
@@ -196,15 +246,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     showToast('Signed out successfully', '👋')
   }, [])
 
-  // ── SELF PIN RESET (no login needed — identity verified by phone match) ─
+  // ── SELF PIN RESET (Customer only — Admin/Super Admin is protected) ──
   const resetPin = useCallback(async (phone: string, newPin: string): Promise<AuthResult> => {
     const cleanPhone = phone.replace(/\D/g, '')
     if (cleanPhone.length < 10) return { ok: false, error: 'Enter valid 10-digit phone number' }
     if (!newPin || newPin.length !== 4 || /\D/.test(newPin)) return { ok: false, error: 'New PIN must be exactly 4 digits' }
 
+    // 🔒 CRITICAL SECURITY: Protect Super Admin & Staff from public reset
+    if (SUPER_ADMIN_PHONES.includes(cleanPhone)) {
+      return { ok: false, error: '🔒 Super Admin PIN cannot be reset publicly. Access via Master Key or Supabase.' }
+    }
+
     try {
-      const { data, error } = await supabase.from('profiles').select('id,name').eq('phone', cleanPhone).single()
+      const { data, error } = await supabase.from('profiles').select('id,name,role').eq('phone', cleanPhone).single()
       if (error || !data) return { ok: false, error: 'No account found with this phone number.' }
+
+      if (data.role === 'admin') {
+        return { ok: false, error: '🔒 Admin accounts cannot be reset from this screen.' }
+      }
 
       await supabase.from('profiles').update({ pin: newPin }).eq('id', data.id)
       storePin(cleanPhone, newPin)

@@ -3,6 +3,12 @@ import { useStore } from '../context/StoreContext'
 import { PORTION_LABELS } from '../lib/business'
 import type { MenuItem, Portion } from '../types'
 
+const SERVING_HINTS: Record<Portion, string> = {
+  C: 'Serves 1',
+  B: 'Serves 1–2',
+  A: 'Serves 3–4',
+}
+
 export default function FoodDetailModal({ item, onClose }: { item: MenuItem; onClose: () => void }) {
   const [portion, setPortion] = useState<Portion>('B')
   const [notes, setNotes] = useState('')
@@ -34,18 +40,18 @@ export default function FoodDetailModal({ item, onClose }: { item: MenuItem; onC
       <div
         className="modal-pop"
         style={{
-          background: '#18181b',
-          border: '1.5px solid rgba(245, 158, 11, 0.4)',
+          background: 'var(--surface)',
+          border: '1.5px solid var(--border-active)',
           borderRadius: '24px',
           overflow: 'hidden',
           width: 'min(460px, 94vw)',
-          color: '#fafaf9',
-          boxShadow: '0 20px 50px rgba(0,0,0,0.8), 0 0 30px rgba(245, 158, 11, 0.1)',
+          color: 'var(--text-primary)',
+          boxShadow: '0 20px 50px rgba(0,0,0,0.8), 0 0 30px var(--primary-glow)',
         }}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Photo Container */}
-        <div style={{ position: 'relative', height: '240px', width: '100%', background: '#09090b' }}>
+        <div style={{ position: 'relative', height: '240px', width: '100%', background: '#09090b', overflow: 'hidden' }}>
           {item.imageUrl ? (
             <img
               src={item.imageUrl}
@@ -127,20 +133,25 @@ export default function FoodDetailModal({ item, onClose }: { item: MenuItem; onC
                   type="button"
                   onClick={() => setPortion(p)}
                   style={{
-                    padding: '0.6rem 0.3rem',
+                    padding: '0.65rem 0.3rem',
                     borderRadius: '10px',
-                    border: portion === p ? '2px solid #f59e0b' : '1px solid #3f3f46',
-                    background: portion === p ? '#f59e0b' : '#27272a',
-                    color: portion === p ? '#18181b' : '#fafaf9',
+                    border: portion === p ? '2px solid var(--primary)' : '1px solid var(--border-strong)',
+                    background: portion === p ? 'var(--primary)' : 'var(--surface-2)',
+                    color: portion === p ? '#111' : 'var(--text-primary)',
                     cursor: 'pointer',
                     textAlign: 'center',
                     transition: 'all 0.15s ease',
+                    fontFamily: 'inherit',
+                    lineHeight: 1.25,
                   }}
                 >
-                  <strong style={{ display: 'block', fontSize: '0.85rem' }}>
+                  <strong style={{ display: 'block', fontSize: '0.85rem', fontWeight: 800 }}>
                     {p === 'C' ? 'Half' : p === 'B' ? 'Full' : 'Family'}
                   </strong>
-                  <span style={{ fontSize: '0.75rem', opacity: 0.9, fontWeight: 700 }}>₹{priceMap[p]}</span>
+                  <span style={{ display: 'block', fontSize: '0.65rem', opacity: 0.8, fontWeight: 600, marginTop: '1px' }}>
+                    {SERVING_HINTS[p]}
+                  </span>
+                  <span style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, marginTop: '2px' }}>₹{priceMap[p]}</span>
                 </button>
               ))}
             </div>
@@ -152,20 +163,24 @@ export default function FoodDetailModal({ item, onClose }: { item: MenuItem; onC
             onClick={handleAdd}
             style={{
               width: '100%',
-              padding: '0.85rem',
+              padding: '0.88rem',
               borderRadius: '12px',
-              background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
+              background: 'linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%)',
               border: 'none',
-              color: '#18181b',
+              color: '#111',
               fontWeight: 900,
               fontSize: '1rem',
               cursor: 'pointer',
-              boxShadow: '0 6px 20px rgba(245, 158, 11, 0.4)',
+              boxShadow: 'var(--shadow-primary-lg)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
               gap: '0.5rem',
+              fontFamily: 'inherit',
+              transition: 'all 0.2s ease',
             }}
+            onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 8px 28px rgba(245,158,11,0.5)' }}
+            onMouseLeave={(e) => { e.currentTarget.style.transform = ''; e.currentTarget.style.boxShadow = 'var(--shadow-primary-lg)' }}
           >
             <span>+ Add to Order</span>
             <span>·</span>

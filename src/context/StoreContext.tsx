@@ -277,6 +277,12 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     setOrders((prev) => [newOrder, ...prev])
     clearCart()
     await createOrderApi(newOrder)
+
+    // Touch customer last_active_at in profiles if logged in
+    if (newOrder.userId) {
+      void supabase.from('profiles').update({ last_active_at: new Date().toISOString() }).eq('id', newOrder.userId)
+    }
+
     showToast('🎉 Order placed successfully!', '✅')
     return newOrder
   }
