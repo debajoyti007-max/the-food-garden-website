@@ -8,9 +8,14 @@ export async function fetchProductsApi(): Promise<MenuItem[]> {
     const { data, error } = await supabase
       .from('products')
       .select('*')
-      .eq('archived', false)
       .order('created_at', { ascending: true })
-    if (error || !data || data.length === 0) return SEED_MENU
+
+    if (error || !data || data.length === 0) {
+      // Auto-seed Supabase in background so rows exist for future updates
+      void seedDatabaseWithMenu(SEED_MENU)
+      return SEED_MENU
+    }
+
     return data.map((d: any) => ({
       id: d.id,
       name: d.name,
@@ -28,6 +33,52 @@ export async function fetchProductsApi(): Promise<MenuItem[]> {
     }))
   } catch {
     return SEED_MENU
+  }
+}
+
+export async function upsertProductApi(item: MenuItem): Promise<boolean> {
+  try {
+    const { error } = await supabase.from('products').upsert({
+      id: item.id,
+      name: item.name,
+      bn_name: item.bnName,
+      emoji: item.emoji,
+      category: item.category,
+      unit: item.unit,
+      p_a: item.pA,
+      p_b: item.pB,
+      p_c: item.pC,
+      in_stock: item.inStock,
+      image_url: item.imageUrl || null,
+      archived: item.archived ?? false,
+      description: item.description || '',
+    })
+    return !error
+  } catch {
+    return false
+  }
+}
+
+async function seedDatabaseWithMenu(items: MenuItem[]) {
+  try {
+    const rows = items.map((it) => ({
+      id: it.id,
+      name: it.name,
+      bn_name: it.bnName,
+      emoji: it.emoji,
+      category: it.category,
+      unit: it.unit,
+      p_a: it.pA,
+      p_b: it.pB,
+      p_c: it.pC,
+      in_stock: it.inStock,
+      image_url: it.imageUrl || null,
+      archived: it.archived ?? false,
+      description: it.description || '',
+    }))
+    await supabase.from('products').upsert(rows)
+  } catch {
+    // Fail silently if table not created yet
   }
 }
 

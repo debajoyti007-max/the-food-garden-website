@@ -92,8 +92,9 @@ export default function SellerOrders() {
 
   const handleVerify = async (o: any) => {
     await verifyUtr(o.id, true)
-    await updateOrderStatus(o.id, 'cooking')
-    window.open(paymentVerifiedWhatsAppUrl(o, lang), '_blank')
+    try {
+      window.open(paymentVerifiedWhatsAppUrl(o, lang), '_blank')
+    } catch {}
     showToast('✅ UTR Verified — Order sent to Kitchen!', '👨‍🍳')
   }
 

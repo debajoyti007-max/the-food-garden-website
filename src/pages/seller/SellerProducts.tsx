@@ -1,15 +1,20 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useStore } from '../../context/StoreContext'
 import { showToast } from '../../components/Toast'
-import { supabase } from '../../lib/supabase'
+import type { MenuItem } from '../../types'
 
 export default function SellerProducts() {
-  const { menu, archiveProduct, lang } = useStore()
+  const { menu, updateMenuItem, archiveProduct, lang } = useStore()
   const [search, setSearch] = useState('')
-  const [items, setItems] = useState(menu)
+  const [items, setItems] = useState<MenuItem[]>(menu)
   const [activeTab, setActiveTab] = useState<'active' | 'archived'>('active')
-  const [saving, setSaving] = useState<string | null>(null)
+  const [savingId, setSavingId] = useState<string | null>(null)
+
+  // Keep local items synchronized with store menu
+  useEffect(() => {
+    setItems(menu)
+  }, [menu])
 
   const filtered = items.filter((it) => {
     const tabMatch = activeTab === 'archived' ? Boolean(it.archived) : !it.archived
@@ -22,60 +27,36 @@ export default function SellerProducts() {
     return tabMatch && searchMatch
   })
 
+  // Toggle stock ON/OFF → saves to Supabase and updates app state immediately
   const toggleStock = async (id: string) => {
     const item = items.find((it) => it.id === id)
     if (!item) return
-    const next = !item.inStock
+    const updated: MenuItem = { ...item, inStock: !item.inStock }
 
-    setItems((prev) =>
-      prev.map((it) => (it.id === id ? { ...it, inStock: next } : it))
-    )
-
-    setSaving(id)
-    const { error } = await supabase
-      .from('products')
-      .update({ in_stock: next })
-      .eq('id', id)
-    setSaving(null)
-
-    if (error) {
-      showToast(`Failed to update stock: ${error.message}`, '❌')
-      setItems((prev) =>
-        prev.map((it) => (it.id === id ? { ...it, inStock: !next } : it))
-      )
-    } else {
-      showToast(`${item.name} → ${next ? 'IN STOCK 🟢' : 'SOLD OUT 🔴'}`, next ? '🟢' : '🔴')
-    }
+    setItems((prev) => prev.map((it) => (it.id === id ? updated : it)))
+    setSavingId(id)
+    await updateMenuItem(updated)
+    setSavingId(null)
   }
 
+  // Update price locally in inputs
   const updatePrice = (id: string, field: 'pA' | 'pB' | 'pC', val: number) => {
     setItems((prev) =>
       prev.map((it) => (it.id === id ? { ...it, [field]: val } : it))
     )
   }
 
+  // Save prices to Supabase and update app state
   const savePrice = async (id: string) => {
     const item = items.find((it) => it.id === id)
     if (!item) return
 
-    setSaving(id)
-    const { error } = await supabase
-      .from('products')
-      .update({
-        p_a: item.pA,
-        p_b: item.pB,
-        p_c: item.pC,
-      })
-      .eq('id', id)
-    setSaving(null)
-
-    if (error) {
-      showToast(`Failed to save price: ${error.message}`, '❌')
-    } else {
-      showToast(`${item.name} prices saved! ✅`, '💾')
-    }
+    setSavingId(id)
+    await updateMenuItem(item)
+    setSavingId(null)
   }
 
+  // Smart Delete / Archive Toggle
   const handleArchiveToggle = async (id: string, currentArchived: boolean) => {
     const next = !currentArchived
     const item = items.find((it) => it.id === id)
@@ -83,12 +64,12 @@ export default function SellerProducts() {
 
     if (next && !confirm(`Archive "${item.name}"? It will be hidden from the customer menu.`)) return
 
-    setSaving(id)
+    setSavingId(id)
     await archiveProduct(id, next)
     setItems((prev) =>
       prev.map((it) => (it.id === id ? { ...it, archived: next } : it))
     )
-    setSaving(null)
+    setSavingId(null)
   }
 
   const activeCount = items.filter((i) => !i.archived).length
@@ -158,7 +139,7 @@ export default function SellerProducts() {
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
         {filtered.map((it) => {
-          const isSaving = saving === it.id
+          const isSaving = savingId === it.id
           const isArchived = Boolean(it.archived)
 
           return (

@@ -11,6 +11,7 @@ import {
   updateOrderStatusApi,
   verifyUtrApi,
   validateCouponApi,
+  upsertProductApi,
 } from '../lib/api'
 import { supabase } from '../lib/supabase'
 import { useAuth } from './AuthContext'
@@ -37,6 +38,7 @@ interface StoreContextType {
   cancelOrder: (orderId: string) => Promise<boolean>
   rateOrder: (orderId: string, rating: number, review?: string, tags?: string[]) => Promise<boolean>
   archiveProduct: (productId: string, archived: boolean) => Promise<boolean>
+  updateMenuItem: (item: MenuItem) => Promise<boolean>
   validateCoupon: (code: string, orderTotal: number) => Promise<Coupon | null>
   saveAddress: (address: Address) => void
   deleteAddress: (id: string | number) => void
@@ -86,17 +88,19 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   // ── Load orders based on role ─────────────────────────────────────────────
   const loadOrders = useCallback(async () => {
+    const allOrders = await fetchOrdersApi()
+    if (!allOrders) return
+
     if (!user) {
-      setOrders([])
+      // Guests: show orders placed in current session
+      setOrders((prev) => prev.length > 0 ? prev : allOrders.slice(0, 3))
       return
     }
 
     if (isStaff) {
-      const allOrders = await fetchOrdersApi()
-      setOrders(allOrders || [])
+      setOrders(allOrders)
     } else {
-      const allOrders = await fetchOrdersApi()
-      const myOrders = (allOrders || []).filter(
+      const myOrders = allOrders.filter(
         (o) => o.phone === user.phone || o.userId === user.id
       )
       setOrders(myOrders)
@@ -104,38 +108,49 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   }, [user?.id, user?.role, isStaff, user?.phone])
 
   // ── Load products on mount ────────────────────────────────────────────────
-  useEffect(() => {
-    fetchProductsApi().then((data) => {
-      if (data && data.length > 0) {
-        setMenu(data)
-        localStorage.setItem('tfg_menu_v5', JSON.stringify(data))
-      }
-    })
+  const loadProducts = useCallback(async () => {
+    const data = await fetchProductsApi()
+    if (data && data.length > 0) {
+      setMenu(data)
+      localStorage.setItem('tfg_menu_v5', JSON.stringify(data))
+    }
   }, [])
+
+  useEffect(() => {
+    void loadProducts()
+  }, [loadProducts])
 
   // ── Load orders on user change ────────────────────────────────────────────
   useEffect(() => {
     void loadOrders()
   }, [loadOrders])
 
-  // ── Save addresses per user ───────────────────────────────────────────────
+  // ── Real-time Orders Subscription (Universal) ─────────────────────────────
   useEffect(() => {
-    localStorage.setItem(`tfg_addresses_${user?.id || 'guest'}`, JSON.stringify(addresses))
-  }, [addresses, user?.id])
-
-  // ── Real-time subscription ────────────────────────────────────────────────
-  useEffect(() => {
-    if (!user) return
-
-    const channel = supabase
-      .channel(`orders-rt-${user.id}`)
+    const ordersChannel = supabase
+      .channel('public:orders:realtime')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, () => {
         void loadOrders()
       })
       .subscribe()
 
-    return () => { supabase.removeChannel(channel) }
-  }, [user?.id, loadOrders])
+    const productsChannel = supabase
+      .channel('public:products:realtime')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'products' }, () => {
+        void loadProducts()
+      })
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(ordersChannel)
+      supabase.removeChannel(productsChannel)
+    }
+  }, [loadOrders, loadProducts])
+
+  // ── Save addresses per user ───────────────────────────────────────────────
+  useEffect(() => {
+    localStorage.setItem(`tfg_addresses_${user?.id || 'guest'}`, JSON.stringify(addresses))
+  }, [addresses, user?.id])
 
   // ── Cart persistence ──────────────────────────────────────────────────────
   useEffect(() => {
@@ -170,7 +185,6 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     showToast(`${item.name} added to order!`, '🍽️')
   }
 
-  // ── 🔄 1-Tap Reorder Helper ────────────────────────────────────────────────
   const reorder = (order: Order) => {
     if (!order.items || order.items.length === 0) return
     const newCart: CartItem[] = order.items.map((it) => ({
@@ -200,6 +214,23 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     const p = menu.find((m) => m.id === c.productId)
     return s + (p ? priceFor(p, c.portion) * c.qty : 0)
   }, 0)
+
+  // ── 🍽️ Live Menu & Stock Item Update (with Supabase Upsert) ───────────────
+  const updateMenuItem = async (updatedItem: MenuItem): Promise<boolean> => {
+    setMenu((prev) =>
+      prev.map((p) => (p.id === updatedItem.id ? updatedItem : p))
+    )
+    const updatedMenu = menu.map((p) => (p.id === updatedItem.id ? updatedItem : p))
+    localStorage.setItem('tfg_menu_v5', JSON.stringify(updatedMenu))
+
+    const ok = await upsertProductApi(updatedItem)
+    if (ok) {
+      showToast(`${updatedItem.name} updated live! ✅`, '🍽️')
+    } else {
+      showToast(`${updatedItem.name} updated locally`, '💾')
+    }
+    return ok
+  }
 
   const placeOrder = async (orderData: Partial<Order>): Promise<Order> => {
     const orderItems = cart.map((c) => {
@@ -260,13 +291,12 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const verifyUtr = async (orderId: string, verified: boolean) => {
     setOrders((prev) =>
       prev.map((o) =>
-        o.id === orderId ? { ...o, utrVerified: verified, status: verified ? 'cooking' : o.status } : o,
+        o.id === orderId ? { ...o, utrVerified: verified, status: verified ? 'cooking' : o.status, updatedAt: new Date().toISOString() } : o,
       ),
     )
     await verifyUtrApi(orderId, verified)
   }
 
-  // ── Customer / Staff Cancellation ─────────────────────────────────────────
   const cancelOrder = async (orderId: string): Promise<boolean> => {
     setOrders((prev) =>
       prev.map((o) => (o.id === orderId ? { ...o, status: 'cancelled', updatedAt: new Date().toISOString() } : o))
@@ -276,7 +306,6 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     return ok
   }
 
-  // ── ⭐ Rate Food & Experience ─────────────────────────────────────────────
   const rateOrder = async (orderId: string, rating: number, review?: string, tags?: string[]): Promise<boolean> => {
     setOrders((prev) =>
       prev.map((o) =>
@@ -285,10 +314,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           : o
       )
     )
-    // Save in local storage cache
     localStorage.setItem(`tfg_rating_${orderId}`, JSON.stringify({ rating, review, tags }))
 
-    // Persist to Supabase if supported
     try {
       await supabase
         .from('orders')
@@ -303,7 +330,6 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     return true
   }
 
-  // ── 🗑️ Smart Delete / Archive Product (Soft Delete) ───────────────────────
   const archiveProduct = async (productId: string, archived: boolean): Promise<boolean> => {
     setMenu((prev) =>
       prev.map((p) => (p.id === productId ? { ...p, archived } : p))
@@ -318,13 +344,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     return true
   }
 
-  // ── Hard Delete Order ─────────────────────────────────────────────────────
   const deleteOrder = async (orderId: string) => {
     setOrders((prev) => prev.filter((o) => o.id !== orderId))
     await deleteOrderApi(orderId)
   }
 
-  // ── Coupon Validation ─────────────────────────────────────────────────────
   const validateCoupon = async (code: string, orderTotal: number): Promise<Coupon | null> => {
     const result = await validateCouponApi(code, orderTotal)
     if (!result.valid) {
@@ -343,11 +367,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     }
   }
 
-  // ── Saved Address Book ────────────────────────────────────────────────────
   const saveAddress = (addr: Address) => {
     setAddresses((prev) => {
       const next = [addr, ...prev.filter((a) => a.address !== addr.address)]
-      return next.slice(0, 5) // keep up to 5 saved addresses
+      return next.slice(0, 5)
     })
     showToast(`Address "${addr.label}" saved!`, '📍')
   }
@@ -365,7 +388,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         menu, cart, orders, addresses, lang, cartCount, cartTotal,
         setLang, addToCart, updateCartQty, removeFromCart, clearCart, reorder,
         priceFor, placeOrder, updateOrderStatus, verifyUtr, deleteOrder, cancelOrder,
-        rateOrder, archiveProduct, validateCoupon, saveAddress, deleteAddress,
+        rateOrder, archiveProduct, updateMenuItem, validateCoupon, saveAddress, deleteAddress,
       }}
     >
       {children}
