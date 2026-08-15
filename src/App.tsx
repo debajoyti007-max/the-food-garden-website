@@ -49,6 +49,12 @@ function RequireAuth({ children }: { children: React.ReactNode }) {
 // 👨‍🍳 SELLER    → customer pages + /rider + /seller + /seller/orders + /seller/products
 // 🛡️ ADMIN     → EVERYTHING + /admin + /admin/staff
 
+function HomeRoute() {
+  const { user } = useAuth()
+  if (user?.role === 'rider') return <Navigate to="/rider" replace />
+  return <Shop />
+}
+
 function AppRoutes() {
   return (
     <Routes>
@@ -57,7 +63,7 @@ function AppRoutes() {
         {/* ═══════════════════════════════════════════════════
             PUBLIC — All visitors (no login required)
         ═══════════════════════════════════════════════════ */}
-        <Route index element={<Shop />} />
+        <Route index element={<HomeRoute />} />
         <Route path="cart" element={<Cart />} />
         <Route path="checkout" element={<Checkout />} />
         <Route path="track" element={<TrackOrder />} />
