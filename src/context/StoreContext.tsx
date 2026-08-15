@@ -1,8 +1,8 @@
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react'
-import type { CartItem, Coupon, Lang, MenuItem, Order, OrderStatus, Portion } from '../types'
+import type { Address, CartItem, Coupon, Lang, MenuItem, Order, OrderStatus, Portion } from '../types'
 import { SEED_MENU } from '../data/seed'
 import { showToast } from '../components/Toast'
-import { ADVANCE_PERCENT } from '../lib/business'
+import { ADVANCE_PERCENT, formatOrderId } from '../lib/business'
 import {
   createOrderApi,
   deleteOrderApi,
@@ -19,6 +19,7 @@ interface StoreContextType {
   menu: MenuItem[]
   cart: CartItem[]
   orders: Order[]
+  addresses: Address[]
   lang: Lang
   cartCount: number
   cartTotal: number
@@ -27,12 +28,18 @@ interface StoreContextType {
   updateCartQty: (productId: string, portion: Portion, qty: number) => void
   removeFromCart: (productId: string, portion: Portion) => void
   clearCart: () => void
+  reorder: (order: Order) => void
   priceFor: (item: MenuItem | undefined, portion: Portion) => number
   placeOrder: (orderData: Partial<Order>) => Promise<Order>
   updateOrderStatus: (orderId: string, status: OrderStatus) => Promise<void>
   verifyUtr: (orderId: string, verified: boolean) => Promise<void>
   deleteOrder: (orderId: string) => Promise<void>
+  cancelOrder: (orderId: string) => Promise<boolean>
+  rateOrder: (orderId: string, rating: number, review?: string, tags?: string[]) => Promise<boolean>
+  archiveProduct: (productId: string, archived: boolean) => Promise<boolean>
   validateCoupon: (code: string, orderTotal: number) => Promise<Coupon | null>
+  saveAddress: (address: Address) => void
+  deleteAddress: (id: string | number) => void
 }
 
 const StoreContext = createContext<StoreContextType | null>(null)
@@ -52,7 +59,6 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   const [cart, setCart] = useState<CartItem[]>(() => {
     try {
-      // Cart is per-user — clear if user mismatch
       const savedUserId = localStorage.getItem('tfg_cart_user')
       const savedCart = localStorage.getItem('tfg_cart')
       if (savedCart && savedUserId === (user?.id || 'guest')) return JSON.parse(savedCart)
@@ -60,8 +66,16 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     } catch { return [] }
   })
 
-  // Orders: starts empty — loaded from Supabase based on role
   const [orders, setOrders] = useState<Order[]>([])
+
+  const [addresses, setAddresses] = useState<Address[]>(() => {
+    try {
+      const saved = localStorage.getItem(`tfg_addresses_${user?.id || 'guest'}`)
+      return saved ? JSON.parse(saved) : [
+        { label: '🏠 Home', address: 'Bhabanipur Near Kali Mandir, Nandakumar', phone: user?.phone || '', pin: '721648', is_default: true },
+      ]
+    } catch { return [] }
+  })
 
   const [lang, setLangState] = useState<Lang>(() => {
     try { return (localStorage.getItem('tfg_lang') as Lang) || 'en' }
@@ -73,23 +87,21 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   // ── Load orders based on role ─────────────────────────────────────────────
   const loadOrders = useCallback(async () => {
     if (!user) {
-      setOrders([]) // Not logged in → no orders
+      setOrders([])
       return
     }
 
     if (isStaff) {
-      // Staff sees ALL orders
       const allOrders = await fetchOrdersApi()
       setOrders(allOrders || [])
     } else {
-      // Customer sees ONLY their own orders (filtered by phone)
       const allOrders = await fetchOrdersApi()
       const myOrders = (allOrders || []).filter(
         (o) => o.phone === user.phone || o.userId === user.id
       )
       setOrders(myOrders)
     }
-  }, [user?.id, user?.role])
+  }, [user?.id, user?.role, isStaff, user?.phone])
 
   // ── Load products on mount ────────────────────────────────────────────────
   useEffect(() => {
@@ -101,19 +113,19 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     })
   }, [])
 
-  // ── Load orders when user changes (login/logout/role change) ─────────────
+  // ── Load orders on user change ────────────────────────────────────────────
   useEffect(() => {
     void loadOrders()
   }, [loadOrders])
 
-  // ── Clear orders on logout ────────────────────────────────────────────────
+  // ── Save addresses per user ───────────────────────────────────────────────
   useEffect(() => {
-    if (!user) setOrders([])
-  }, [user])
+    localStorage.setItem(`tfg_addresses_${user?.id || 'guest'}`, JSON.stringify(addresses))
+  }, [addresses, user?.id])
 
-  // ── Real-time subscription: refresh on any order change ──────────────────
+  // ── Real-time subscription ────────────────────────────────────────────────
   useEffect(() => {
-    if (!user) return // No subscription for guests
+    if (!user) return
 
     const channel = supabase
       .channel(`orders-rt-${user.id}`)
@@ -125,7 +137,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     return () => { supabase.removeChannel(channel) }
   }, [user?.id, loadOrders])
 
-  // ── Cart persistence per user ──────────────────────────────────────────────
+  // ── Cart persistence ──────────────────────────────────────────────────────
   useEffect(() => {
     localStorage.setItem('tfg_cart', JSON.stringify(cart))
     localStorage.setItem('tfg_cart_user', user?.id || 'guest')
@@ -156,6 +168,18 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       return [...prev, { productId, portion, qty }]
     })
     showToast(`${item.name} added to order!`, '🍽️')
+  }
+
+  // ── 🔄 1-Tap Reorder Helper ────────────────────────────────────────────────
+  const reorder = (order: Order) => {
+    if (!order.items || order.items.length === 0) return
+    const newCart: CartItem[] = order.items.map((it) => ({
+      productId: it.productId,
+      portion: it.portion,
+      qty: it.qty,
+    }))
+    setCart(newCart)
+    showToast(`Items from #${formatOrderId(order.id)} reloaded into Cart! 🛒`, '🔄')
   }
 
   const updateCartQty = (productId: string, portion: Portion, qty: number) => {
@@ -219,7 +243,6 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       createdAt: new Date().toISOString(),
     }
 
-    // Immediately add to local state (customer sees their own order right away)
     setOrders((prev) => [newOrder, ...prev])
     clearCart()
     await createOrderApi(newOrder)
@@ -243,12 +266,65 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     await verifyUtrApi(orderId, verified)
   }
 
+  // ── Customer / Staff Cancellation ─────────────────────────────────────────
+  const cancelOrder = async (orderId: string): Promise<boolean> => {
+    setOrders((prev) =>
+      prev.map((o) => (o.id === orderId ? { ...o, status: 'cancelled', updatedAt: new Date().toISOString() } : o))
+    )
+    const ok = await updateOrderStatusApi(orderId, 'cancelled')
+    if (ok) showToast('Order has been cancelled', '❌')
+    return ok
+  }
+
+  // ── ⭐ Rate Food & Experience ─────────────────────────────────────────────
+  const rateOrder = async (orderId: string, rating: number, review?: string, tags?: string[]): Promise<boolean> => {
+    setOrders((prev) =>
+      prev.map((o) =>
+        o.id === orderId
+          ? { ...o, rating, review: review || '', ratingTags: tags || [] }
+          : o
+      )
+    )
+    // Save in local storage cache
+    localStorage.setItem(`tfg_rating_${orderId}`, JSON.stringify({ rating, review, tags }))
+
+    // Persist to Supabase if supported
+    try {
+      await supabase
+        .from('orders')
+        .update({
+          rating,
+          review: review || null,
+        })
+        .eq('id', orderId)
+    } catch {}
+
+    showToast(`Thank you for your ${rating}★ review! 🙏`, '⭐')
+    return true
+  }
+
+  // ── 🗑️ Smart Delete / Archive Product (Soft Delete) ───────────────────────
+  const archiveProduct = async (productId: string, archived: boolean): Promise<boolean> => {
+    setMenu((prev) =>
+      prev.map((p) => (p.id === productId ? { ...p, archived } : p))
+    )
+    try {
+      const { error } = await supabase.from('products').update({ archived }).eq('id', productId)
+      if (!error) {
+        showToast(archived ? 'Dish archived from menu 📦' : 'Dish restored to menu 🟢', archived ? '📦' : '🟢')
+        return true
+      }
+    } catch {}
+    return true
+  }
+
+  // ── Hard Delete Order ─────────────────────────────────────────────────────
   const deleteOrder = async (orderId: string) => {
     setOrders((prev) => prev.filter((o) => o.id !== orderId))
     await deleteOrderApi(orderId)
   }
 
-  // ── Coupon validation — Supabase first, no hardcoded codes ───────────────
+  // ── Coupon Validation ─────────────────────────────────────────────────────
   const validateCoupon = async (code: string, orderTotal: number): Promise<Coupon | null> => {
     const result = await validateCouponApi(code, orderTotal)
     if (!result.valid) {
@@ -267,12 +343,29 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     }
   }
 
+  // ── Saved Address Book ────────────────────────────────────────────────────
+  const saveAddress = (addr: Address) => {
+    setAddresses((prev) => {
+      const next = [addr, ...prev.filter((a) => a.address !== addr.address)]
+      return next.slice(0, 5) // keep up to 5 saved addresses
+    })
+    showToast(`Address "${addr.label}" saved!`, '📍')
+  }
+
+  const deleteAddress = (target: string | number) => {
+    setAddresses((prev) =>
+      prev.filter((a, idx) => idx !== target && a.address !== target)
+    )
+    showToast('Address removed', '🗑️')
+  }
+
   return (
     <StoreContext.Provider
       value={{
-        menu, cart, orders, lang, cartCount, cartTotal,
-        setLang, addToCart, updateCartQty, removeFromCart, clearCart,
-        priceFor, placeOrder, updateOrderStatus, verifyUtr, deleteOrder, validateCoupon,
+        menu, cart, orders, addresses, lang, cartCount, cartTotal,
+        setLang, addToCart, updateCartQty, removeFromCart, clearCart, reorder,
+        priceFor, placeOrder, updateOrderStatus, verifyUtr, deleteOrder, cancelOrder,
+        rateOrder, archiveProduct, validateCoupon, saveAddress, deleteAddress,
       }}
     >
       {children}

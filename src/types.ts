@@ -69,6 +69,9 @@ export interface Order {
   utrVerified: boolean
   status: OrderStatus
   deliverySlot?: DeliverySlot
+  rating?: number
+  review?: string
+  ratingTags?: string[]
   createdAt: string
   updatedAt?: string
 }

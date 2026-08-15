@@ -8,14 +8,16 @@ import type { OrderType } from '../types'
 
 export default function Checkout() {
   const { user } = useAuth()
-  const { cart, cartTotal, placeOrder, validateCoupon, lang } = useStore()
+  const { cart, cartTotal, placeOrder, validateCoupon, addresses, saveAddress, lang } = useStore()
   const navigate = useNavigate()
 
   const [orderType, setOrderType] = useState<OrderType>('dine_in')
-  const [tableNo, setTableNo] = useState('Cottage 1')
+  const [tableNo, setTableNo] = useState('Garden Cottage 1')
   const [name, setName] = useState(user?.name || '')
   const [phone, setPhone] = useState(user?.phone || '')
-  const [address, setAddress] = useState('')
+  const [address, setAddress] = useState(addresses[0]?.address || '')
+  const [addressLabel, setAddressLabel] = useState('Home')
+  const [saveThisAddress, setSaveThisAddress] = useState(false)
   const [utr, setUtr] = useState('')
   const [couponCode, setCouponCode] = useState('')
   const [discount, setDiscount] = useState(0)
@@ -41,7 +43,7 @@ export default function Checkout() {
     } else {
       setDiscount(0)
       setCouponMessage('❌ Invalid or expired coupon code')
-      showToast('Invalid coupon', '❌', 'error')
+      showToast('Invalid coupon', '❌')
     }
   }
 
@@ -49,22 +51,32 @@ export default function Checkout() {
     e.preventDefault()
 
     if (!name.trim() || !phone.trim()) {
-      showToast('Please enter Name and Phone number', '⚠️', 'error')
+      showToast('Please enter Name and Phone number', '⚠️')
       return
     }
 
     if (orderType === 'delivery' && !address.trim()) {
-      showToast('Please enter delivery address', '⚠️', 'error')
+      showToast('Please enter delivery address', '⚠️')
       return
     }
 
-    if (!utr.trim() || utr.trim().length < 8) {
-      showToast('Please enter valid 12-digit UPI UTR number', '⚠️', 'error')
+    if (!utr.trim() || utr.trim().length < 6) {
+      showToast('Please enter valid UPI UTR / Transaction reference', '⚠️')
       return
     }
 
     setLoading(true)
     try {
+      if (orderType === 'delivery' && saveThisAddress && address.trim()) {
+        saveAddress({
+          label: addressLabel.trim() || 'Saved Address',
+          address: address.trim(),
+          phone: phone.trim(),
+          pin: '721648',
+          is_default: false,
+        })
+      }
+
       const order = await placeOrder({
         userId: user?.id,
         userName: name.trim(),
@@ -79,7 +91,7 @@ export default function Checkout() {
 
       navigate(`/orders/success/${order.id}`)
     } catch {
-      showToast('Failed to place order', '❌', 'error')
+      showToast('Failed to place order', '❌')
     } finally {
       setLoading(false)
     }
@@ -93,8 +105,8 @@ export default function Checkout() {
 
       <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
         {/* 1. Dining Mode Switcher */}
-        <div style={{ background: '#27272a', border: '1px solid #3f3f46', borderRadius: '16px', padding: '1.25rem' }}>
-          <label style={{ fontSize: '0.85rem', color: '#f59e0b', fontWeight: 700, display: 'block', marginBottom: '0.6rem', textTransform: 'uppercase' }}>
+        <div style={{ background: '#1c1917', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '18px', padding: '1.25rem' }}>
+          <label style={{ fontSize: '0.85rem', color: '#f59e0b', fontWeight: 800, display: 'block', marginBottom: '0.6rem', textTransform: 'uppercase' }}>
             1. Select Order Type:
           </label>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.5rem' }}>
@@ -109,9 +121,9 @@ export default function Checkout() {
                 onClick={() => setOrderType(opt.type)}
                 style={{
                   padding: '0.75rem 0.5rem',
-                  borderRadius: '10px',
+                  borderRadius: '12px',
                   border: orderType === opt.type ? '2px solid #f59e0b' : '1px solid #3f3f46',
-                  background: orderType === opt.type ? '#f59e0b' : '#18181b',
+                  background: orderType === opt.type ? '#f59e0b' : '#121214',
                   color: orderType === opt.type ? '#18181b' : '#d6d3d1',
                   cursor: 'pointer',
                   textAlign: 'center',
@@ -126,7 +138,7 @@ export default function Checkout() {
           {orderType === 'dine_in' && (
             <div style={{ marginTop: '1rem' }}>
               <label style={{ fontSize: '0.8rem', color: '#d6d3d1', display: 'block', marginBottom: '0.35rem' }}>Select Table / Cottage Number:</label>
-              <select value={tableNo} onChange={(e) => setTableNo(e.target.value)} style={{ width: '100%', padding: '0.65rem', borderRadius: '8px', background: '#18181b', border: '1px solid #3f3f46', color: '#fff' }}>
+              <select value={tableNo} onChange={(e) => setTableNo(e.target.value)} style={{ width: '100%', padding: '0.65rem', borderRadius: '8px', background: '#121214', border: '1px solid #3f3f46', color: '#fff' }}>
                 <option value="Garden Cottage 1">🌿 Garden Cottage 1</option>
                 <option value="Garden Cottage 2">🌿 Garden Cottage 2</option>
                 <option value="Garden Cottage 3">🌿 Garden Cottage 3</option>
@@ -138,38 +150,109 @@ export default function Checkout() {
           )}
         </div>
 
-        {/* 2. Customer Details */}
-        <div style={{ background: '#27272a', border: '1px solid #3f3f46', borderRadius: '16px', padding: '1.25rem' }}>
-          <label style={{ fontSize: '0.85rem', color: '#f59e0b', fontWeight: 700, display: 'block', marginBottom: '0.6rem', textTransform: 'uppercase' }}>
+        {/* 2. Customer Details & Saved Addresses */}
+        <div style={{ background: '#1c1917', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '18px', padding: '1.25rem' }}>
+          <label style={{ fontSize: '0.85rem', color: '#f59e0b', fontWeight: 800, display: 'block', marginBottom: '0.6rem', textTransform: 'uppercase' }}>
             2. Customer Details:
           </label>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
             <div>
-              <label style={{ fontSize: '0.8rem', color: '#d6d3d1', display: 'block', marginBottom: '0.25rem' }}>Your Name:</label>
-              <input type="text" required value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Suman Roy" style={{ width: '100%', padding: '0.65rem', borderRadius: '8px', background: '#18181b', border: '1px solid #3f3f46', color: '#fff' }} />
+              <label style={{ fontSize: '0.78rem', color: '#a1a1aa', display: 'block', marginBottom: '0.25rem' }}>Your Name:</label>
+              <input type="text" required value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Suman Roy" style={{ width: '100%', padding: '0.65rem', borderRadius: '8px', background: '#121214', border: '1px solid #3f3f46', color: '#fff' }} />
             </div>
             <div>
-              <label style={{ fontSize: '0.8rem', color: '#d6d3d1', display: 'block', marginBottom: '0.25rem' }}>Phone Number:</label>
-              <input type="tel" required value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="e.g. 9876543210" style={{ width: '100%', padding: '0.65rem', borderRadius: '8px', background: '#18181b', border: '1px solid #3f3f46', color: '#fff' }} />
+              <label style={{ fontSize: '0.78rem', color: '#a1a1aa', display: 'block', marginBottom: '0.25rem' }}>Phone Number:</label>
+              <input type="tel" required value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="e.g. 9876543210" style={{ width: '100%', padding: '0.65rem', borderRadius: '8px', background: '#121214', border: '1px solid #3f3f46', color: '#fff' }} />
             </div>
           </div>
 
           {orderType === 'delivery' && (
-            <div style={{ marginTop: '0.75rem' }}>
-              <label style={{ fontSize: '0.8rem', color: '#d6d3d1', display: 'block', marginBottom: '0.25rem' }}>Delivery Address in Bhabanipur / Nandakumar:</label>
-              <input type="text" required value={address} onChange={(e) => setAddress(e.target.value)} placeholder="House / Village, Landmark, Nandakumar" style={{ width: '100%', padding: '0.65rem', borderRadius: '8px', background: '#18181b', border: '1px solid #3f3f46', color: '#fff' }} />
+            <div style={{ marginTop: '0.85rem' }}>
+              {/* 1-Tap Saved Address Selector */}
+              {addresses.length > 0 && (
+                <div style={{ marginBottom: '0.65rem' }}>
+                  <span style={{ fontSize: '0.72rem', color: '#a1a1aa', display: 'block', marginBottom: '0.35rem' }}>
+                    1-Tap Select Saved Address:
+                  </span>
+                  <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
+                    {addresses.map((a, idx) => (
+                      <button
+                        key={idx}
+                        type="button"
+                        onClick={() => setAddress(a.address)}
+                        style={{
+                          padding: '0.35rem 0.65rem',
+                          borderRadius: '16px',
+                          border: address === a.address ? '1.5px solid #f59e0b' : '1px solid #3f3f46',
+                          background: address === a.address ? '#78350f' : '#27272a',
+                          color: address === a.address ? '#fef3c7' : '#d6d3d1',
+                          fontSize: '0.75rem',
+                          cursor: 'pointer',
+                          fontWeight: address === a.address ? 800 : 500,
+                        }}
+                      >
+                        {a.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <label style={{ fontSize: '0.78rem', color: '#a1a1aa', display: 'block', marginBottom: '0.25rem' }}>
+                Delivery Address in Bhabanipur / Nandakumar:
+              </label>
+              <input
+                type="text"
+                required
+                value={address}
+                onChange={(e) => setAddress(e.target.value)}
+                placeholder="House / Village, Landmark, Nandakumar"
+                style={{ width: '100%', padding: '0.65rem', borderRadius: '8px', background: '#121214', border: '1px solid #3f3f46', color: '#fff' }}
+              />
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '0.5rem' }}>
+                <input
+                  type="checkbox"
+                  id="saveAddr"
+                  checked={saveThisAddress}
+                  onChange={(e) => setSaveThisAddress(e.target.checked)}
+                  style={{ accentColor: '#f59e0b' }}
+                />
+                <label htmlFor="saveAddr" style={{ fontSize: '0.75rem', color: '#d6d3d1', cursor: 'pointer' }}>
+                  Save this address for 1-tap future orders
+                </label>
+                {saveThisAddress && (
+                  <input
+                    type="text"
+                    value={addressLabel}
+                    onChange={(e) => setAddressLabel(e.target.value)}
+                    placeholder="Label (e.g. Home, Office)"
+                    style={{ marginLeft: 'auto', padding: '2px 8px', borderRadius: '6px', background: '#121214', border: '1px solid #3f3f46', color: '#fff', fontSize: '0.75rem', width: '110px' }}
+                  />
+                )}
+              </div>
             </div>
           )}
         </div>
 
         {/* 3. Promo Coupon */}
-        <div style={{ background: '#27272a', border: '1px solid #3f3f46', borderRadius: '16px', padding: '1.25rem' }}>
-          <label style={{ fontSize: '0.85rem', color: '#f59e0b', fontWeight: 700, display: 'block', marginBottom: '0.5rem', textTransform: 'uppercase' }}>
+        <div style={{ background: '#1c1917', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '18px', padding: '1.25rem' }}>
+          <label style={{ fontSize: '0.85rem', color: '#f59e0b', fontWeight: 800, display: 'block', marginBottom: '0.5rem', textTransform: 'uppercase' }}>
             🎟️ Apply Promo Coupon:
           </label>
           <div style={{ display: 'flex', gap: '0.5rem' }}>
-            <input type="text" value={couponCode} onChange={(e) => setCouponCode(e.target.value.toUpperCase())} placeholder="Enter promo code..." style={{ flex: 1, padding: '0.6rem 0.8rem', borderRadius: '8px', background: '#18181b', border: '1px solid #3f3f46', color: '#fff', fontWeight: 700 }} />
-            <button type="button" onClick={handleApplyCoupon} style={{ padding: '0.6rem 1.1rem', background: '#f59e0b', color: '#18181b', border: 'none', borderRadius: '8px', fontWeight: 800, cursor: 'pointer' }}>
+            <input
+              type="text"
+              value={couponCode}
+              onChange={(e) => setCouponCode(e.target.value.toUpperCase())}
+              placeholder="Enter promo code..."
+              style={{ flex: 1, padding: '0.6rem 0.8rem', borderRadius: '8px', background: '#121214', border: '1px solid #3f3f46', color: '#fff', fontWeight: 700 }}
+            />
+            <button
+              type="button"
+              onClick={handleApplyCoupon}
+              style={{ padding: '0.6rem 1.1rem', background: '#f59e0b', color: '#18181b', border: 'none', borderRadius: '8px', fontWeight: 800, cursor: 'pointer' }}
+            >
               Apply
             </button>
           </div>
@@ -177,8 +260,8 @@ export default function Checkout() {
         </div>
 
         {/* 4. 1-Tap UPI Advance Payment */}
-        <div style={{ background: '#27272a', border: '1.5px solid #f59e0b', borderRadius: '16px', padding: '1.25rem' }}>
-          <label style={{ fontSize: '0.85rem', color: '#f59e0b', fontWeight: 700, display: 'block', marginBottom: '0.5rem', textTransform: 'uppercase' }}>
+        <div style={{ background: '#1c1917', border: '1.5px solid #f59e0b', borderRadius: '18px', padding: '1.25rem' }}>
+          <label style={{ fontSize: '0.85rem', color: '#f59e0b', fontWeight: 800, display: 'block', marginBottom: '0.5rem', textTransform: 'uppercase' }}>
             ⚡ 4. 1-Tap Advance Payment (50% Advance):
           </label>
           <p style={{ fontSize: '0.85rem', color: '#d6d3d1', margin: '0 0 1rem', lineHeight: 1.4 }}>
@@ -200,13 +283,13 @@ export default function Checkout() {
               ⚡ 1-Tap Quick Pay on Mobile App:
             </span>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.5rem' }}>
-              <a href={`upi://pay?pa=${UPI_ID}&pn=${encodeURIComponent(STORE_NAME)}&am=${advancePayable}&cu=INR&tn=TFG+Food+Advance`} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem', padding: '0.65rem', background: '#18181b', border: '1px solid #3f3f46', borderRadius: '8px', color: '#fff', textDecoration: 'none', fontWeight: 700, fontSize: '0.85rem' }}>
+              <a href={`upi://pay?pa=${UPI_ID}&pn=${encodeURIComponent(STORE_NAME)}&am=${advancePayable}&cu=INR&tn=TFG+Food+Advance`} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem', padding: '0.65rem', background: '#121214', border: '1px solid #3f3f46', borderRadius: '8px', color: '#fff', textDecoration: 'none', fontWeight: 700, fontSize: '0.85rem' }}>
                 <span style={{ color: '#0f9d58' }}>●</span> GPay
               </a>
-              <a href={`upi://pay?pa=${UPI_ID}&pn=${encodeURIComponent(STORE_NAME)}&am=${advancePayable}&cu=INR&tn=TFG+Food+Advance`} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem', padding: '0.65rem', background: '#18181b', border: '1px solid #3f3f46', borderRadius: '8px', color: '#fff', textDecoration: 'none', fontWeight: 700, fontSize: '0.85rem' }}>
+              <a href={`upi://pay?pa=${UPI_ID}&pn=${encodeURIComponent(STORE_NAME)}&am=${advancePayable}&cu=INR&tn=TFG+Food+Advance`} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem', padding: '0.65rem', background: '#121214', border: '1px solid #3f3f46', borderRadius: '8px', color: '#fff', textDecoration: 'none', fontWeight: 700, fontSize: '0.85rem' }}>
                 <span style={{ color: '#5f259f' }}>●</span> PhonePe
               </a>
-              <a href={`upi://pay?pa=${UPI_ID}&pn=${encodeURIComponent(STORE_NAME)}&am=${advancePayable}&cu=INR&tn=TFG+Food+Advance`} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem', padding: '0.65rem', background: '#18181b', border: '1px solid #3f3f46', borderRadius: '8px', color: '#fff', textDecoration: 'none', fontWeight: 700, fontSize: '0.85rem' }}>
+              <a href={`upi://pay?pa=${UPI_ID}&pn=${encodeURIComponent(STORE_NAME)}&am=${advancePayable}&cu=INR&tn=TFG+Food+Advance`} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem', padding: '0.65rem', background: '#121214', border: '1px solid #3f3f46', borderRadius: '8px', color: '#fff', textDecoration: 'none', fontWeight: 700, fontSize: '0.85rem' }}>
                 <span style={{ color: '#00baf2' }}>●</span> Paytm
               </a>
               <a href={`upi://pay?pa=${UPI_ID}&pn=${encodeURIComponent(STORE_NAME)}&am=${advancePayable}&cu=INR&tn=TFG+Food+Advance`} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem', padding: '0.65rem', background: '#f59e0b', border: '1px solid #f59e0b', borderRadius: '8px', color: '#18181b', textDecoration: 'none', fontWeight: 800, fontSize: '0.85rem' }}>
@@ -220,7 +303,14 @@ export default function Checkout() {
             <label style={{ fontSize: '0.8rem', color: '#d6d3d1', display: 'block', marginBottom: '0.25rem' }}>
               Enter 12-Digit UPI UTR / Transaction ID (from GPay/PhonePe):
             </label>
-            <input type="text" required value={utr} onChange={(e) => setUtr(e.target.value)} placeholder="e.g. 419204918231" style={{ width: '100%', padding: '0.65rem', borderRadius: '8px', background: '#18181b', border: '1.5px solid #f59e0b', color: '#fff', fontWeight: 700 }} />
+            <input
+              type="text"
+              required
+              value={utr}
+              onChange={(e) => setUtr(e.target.value)}
+              placeholder="e.g. 419204918231"
+              style={{ width: '100%', padding: '0.65rem', borderRadius: '8px', background: '#121214', border: '1.5px solid #f59e0b', color: '#fff', fontWeight: 700 }}
+            />
           </div>
         </div>
 
@@ -232,7 +322,7 @@ export default function Checkout() {
             background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
             color: '#18181b',
             padding: '0.95rem',
-            borderRadius: '12px',
+            borderRadius: '14px',
             border: 'none',
             fontWeight: 900,
             fontSize: '1.05rem',

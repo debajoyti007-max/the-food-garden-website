@@ -13,7 +13,7 @@ const ROLE_BADGE: Record<string, { label: string; icon: string; color: string }>
 
 export default function Profile() {
   const { user, logout, updateOwnName, updateOwnPin } = useAuth()
-  const { orders, lang } = useStore()
+  const { orders, addresses, deleteAddress, lang } = useStore()
 
   // Change Name state
   const [editingName, setEditingName] = useState(false)
@@ -194,6 +194,35 @@ export default function Profile() {
               {savingPin ? '⏳ Saving PIN...' : 'Update PIN'}
             </button>
           </form>
+        )}
+      </div>
+
+      {/* 📍 Saved Address Book */}
+      <div style={{ background: '#1c1917', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '16px', padding: '1.25rem', marginBottom: '1rem' }}>
+        <h3 style={{ margin: '0 0 0.85rem', fontSize: '0.85rem', color: '#a1a1aa', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+          📍 Saved Delivery Addresses ({addresses.length})
+        </h3>
+        {addresses.length === 0 ? (
+          <p style={{ color: '#71717a', fontSize: '0.8rem', margin: 0 }}>No saved addresses. Save one during checkout!</p>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+            {addresses.map((addr, idx) => (
+              <div key={idx} style={{ background: '#121214', border: '1px solid rgba(255,255,255,0.05)', borderRadius: '10px', padding: '0.65rem 0.85rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div>
+                  <strong style={{ color: '#f59e0b', fontSize: '0.82rem', display: 'block' }}>{addr.label}</strong>
+                  <span style={{ color: '#d6d3d1', fontSize: '0.78rem' }}>{addr.address}</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => deleteAddress(addr.address)}
+                  style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '0.85rem', padding: '4px' }}
+                  title="Remove Address"
+                >
+                  🗑️
+                </button>
+              </div>
+            ))}
+          </div>
         )}
       </div>
 
