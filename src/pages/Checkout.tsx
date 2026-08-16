@@ -78,6 +78,57 @@ const LABEL_STYLE: React.CSSProperties = {
   fontWeight: 600,
 }
 
+// ─── Delivery Distance Zones (Nandakumar Origin) ─────────────────────────────
+export type DeliveryRadiusZone = 'under_5km' | '5_to_15km' | 'over_15km'
+
+export interface DeliveryZoneOption {
+  id: DeliveryRadiusZone
+  name: string
+  shortLabel: string
+  fee: number
+  eta: string
+  areas: string
+  badge: string
+  badgeColor: string
+  isAvailable: boolean
+}
+
+export const DELIVERY_ZONE_OPTIONS: DeliveryZoneOption[] = [
+  {
+    id: 'under_5km',
+    name: '📍 Local Nandakumar (0 – 5 km)',
+    shortLabel: '0–5 km',
+    fee: 30,
+    eta: '25–35 min',
+    areas: 'Bhabanipur, Nandakumar Bazar, Kumarpur, NH-116 Junction, Kali Mandir',
+    badge: '🟢 Express (25–35 min)',
+    badgeColor: '#22c55e',
+    isAvailable: true,
+  },
+  {
+    id: '5_to_15km',
+    name: '📍 Extended Area (5 – 15 km)',
+    shortLabel: '5–15 km',
+    fee: 50,
+    eta: '40–50 min',
+    areas: 'Mahishadal Road, Tamluk Border, Narghat, Moyna Link, Chandipur Crossing',
+    badge: '🟡 Standard (40–50 min)',
+    badgeColor: '#f59e0b',
+    isAvailable: true,
+  },
+  {
+    id: 'over_15km',
+    name: '🚫 Beyond 15 km (Out of Range)',
+    shortLabel: '>15 km',
+    fee: 0,
+    eta: 'N/A',
+    areas: 'Haldia, Mecheda, Kolaghat, Panskura (>15 km from restaurant)',
+    badge: '🔴 Out of Area (Takeaway Only)',
+    badgeColor: '#ef4444',
+    isAvailable: false,
+  },
+]
+
 export default function Checkout() {
   const { user } = useAuth()
   const { cart, cartTotal, orders, placeOrder, validateCoupon, addresses, saveAddress, lang } = useStore()
@@ -97,6 +148,8 @@ export default function Checkout() {
   const [address, setAddress] = useState(addresses[0]?.address || '')
   const [addressLabel, setAddressLabel] = useState('Home')
   const [saveThisAddress, setSaveThisAddress] = useState(false)
+  const [deliveryZone, setDeliveryZone] = useState<DeliveryRadiusZone>('under_5km')
+  const [paymentMethod, setPaymentMethod] = useState<'cash' | 'upi'>('cash')
   const [paymentMode, setPaymentMode] = useState<'advance' | 'full'>('advance')
   const [utr, setUtr] = useState('')
   const [couponCode, setCouponCode] = useState('')
@@ -114,11 +167,17 @@ export default function Checkout() {
     return null
   }
 
-  const deliveryFee = orderType === 'delivery' ? 30 : 0
+  const selectedZone = DELIVERY_ZONE_OPTIONS.find((z) => z.id === deliveryZone) || DELIVERY_ZONE_OPTIONS[0]
+  const isDeliveryOutOfRange = orderType === 'delivery' && !selectedZone.isAvailable
+  const deliveryFee = orderType === 'delivery' && selectedZone.isAvailable ? selectedZone.fee : 0
   const finalTotal = Math.max(0, cartTotal + deliveryFee - discount)
   const advancePayable = Math.ceil(finalTotal * ADVANCE_PERCENT)
-  const payableNow = paymentMode === 'full' ? finalTotal : advancePayable
-  const balanceDue = finalTotal - payableNow
+  
+  // If paymentMethod is 'cash', payableNow is full amount upon arrival/table service
+  const payableNow = paymentMethod === 'cash' 
+    ? finalTotal 
+    : (paymentMode === 'full' ? finalTotal : advancePayable)
+  const balanceDue = paymentMethod === 'cash' ? 0 : (finalTotal - payableNow)
 
   const upiDeepLink = `upi://pay?pa=${encodeURIComponent(UPI_ID)}&pn=${encodeURIComponent(STORE_NAME)}&am=${payableNow}&cu=INR&tn=TFG+Food+${paymentMode === 'full' ? 'Payment' : 'Advance'}`
   const dynamicQrSrc = `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=upi%3A%2F%2Fpay%3Fpa%3D${encodeURIComponent(UPI_ID)}%26pn%3D${encodeURIComponent(STORE_NAME)}%26am%3D${payableNow}%26cu%3DINR`
@@ -146,24 +205,35 @@ export default function Checkout() {
       return
     }
 
-    if (orderType === 'delivery' && !address.trim()) {
-      showToast('Please enter delivery address', '⚠️')
-      return
+    if (orderType === 'delivery') {
+      if (isDeliveryOutOfRange) {
+        showToast('⚠️ Delivery is only available within 15 km of Nandakumar. Please choose Takeaway or Dine-In!', '🚫')
+        return
+      }
+      if (!address.trim()) {
+        showToast('Please enter delivery address', '⚠️')
+        return
+      }
     }
 
-    if (!utr.trim() || utr.trim().length < 6) {
-      showToast('Please enter valid UPI UTR / Transaction reference', '⚠️')
-      return
-    }
-
-    // 🛡️ Duplicate UTR Check
-    const cleanUtr = utr.trim().toUpperCase()
-    const duplicateUtrOrder = orders.find(
-      (o) => o.utr && o.utr.trim().toUpperCase() === cleanUtr && o.status !== 'cancelled'
-    )
-    if (duplicateUtrOrder) {
-      showToast('⚠️ This UTR has already been submitted for another order. Please enter your new transaction UTR.', '🚫')
-      return
+    let finalUtr = ''
+    if (paymentMethod === 'cash') {
+      finalUtr = orderType === 'delivery' ? 'COD-CASH' : orderType === 'takeaway' ? 'COUNTER-CASH' : 'TABLE-CASH'
+    } else {
+      if (!utr.trim() || utr.trim().length < 6) {
+        showToast('Please enter valid UPI UTR / Transaction reference', '⚠️')
+        return
+      }
+      // 🛡️ Duplicate UTR Check
+      const cleanUtr = utr.trim().toUpperCase()
+      const duplicateUtrOrder = orders.find(
+        (o) => o.utr && o.utr.trim().toUpperCase() === cleanUtr && o.status !== 'cancelled'
+      )
+      if (duplicateUtrOrder) {
+        showToast('⚠️ This UTR has already been submitted for another order. Please enter your new transaction UTR.', '🚫')
+        return
+      }
+      finalUtr = utr.trim()
     }
 
     setLoading(true)
@@ -182,6 +252,8 @@ export default function Checkout() {
         ? `${seatingZone} (${seatingNote.trim()})`
         : seatingZone
 
+      const effectiveAdvance = paymentMethod === 'cash' ? 0 : payableNow
+
       const order = await placeOrder({
         userId: user?.id,
         userName: name.trim(),
@@ -190,14 +262,14 @@ export default function Checkout() {
         tableNo: orderType === 'dine_in' ? diningLocation : undefined,
         address:
           orderType === 'delivery'
-            ? address.trim()
+            ? `${address.trim()} (${selectedZone.shortLabel})`
             : orderType === 'takeaway'
             ? (takeawayNote.trim() ? `Takeaway: ${takeawayNote.trim()}` : 'Highway Car / Counter Takeaway')
             : diningLocation,
         deliveryFee,
         discountAmount: discount,
-        advanceAmount: payableNow,
-        utr: utr.trim(),
+        advanceAmount: effectiveAdvance,
+        utr: finalUtr,
       })
 
       navigate(`/orders/success/${order.id}`)
@@ -385,6 +457,81 @@ export default function Checkout() {
 
           {orderType === 'delivery' && (
             <div style={{ marginTop: '0.85rem' }}>
+              {/* ── Delivery Distance Selector ────────────────────── */}
+              <div style={{ marginBottom: '0.85rem' }}>
+                <span style={{ ...LABEL_STYLE, marginBottom: '0.4rem', color: 'var(--primary)', fontWeight: 800 }}>
+                  📍 Select Delivery Distance from Nandakumar (NH-116B):
+                </span>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '0.45rem' }}>
+                  {DELIVERY_ZONE_OPTIONS.map((z) => {
+                    const isSelected = deliveryZone === z.id
+                    return (
+                      <div
+                        key={z.id}
+                        onClick={() => setDeliveryZone(z.id)}
+                        style={{
+                          background: isSelected ? 'rgba(245,158,11,0.12)' : 'var(--surface-2)',
+                          border: isSelected ? '1.5px solid var(--primary)' : '1px solid var(--border-strong)',
+                          borderRadius: '12px',
+                          padding: '0.65rem 0.85rem',
+                          cursor: 'pointer',
+                          transition: 'all 0.18s ease',
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          alignItems: 'center',
+                          gap: '0.5rem',
+                        }}
+                      >
+                        <div style={{ flex: 1 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                            <strong style={{ fontSize: '0.86rem', color: isSelected ? 'var(--primary)' : 'var(--text-primary)' }}>
+                              {z.name}
+                            </strong>
+                            <span
+                              style={{
+                                fontSize: '0.7rem',
+                                fontWeight: 800,
+                                color: z.badgeColor,
+                                background: `${z.badgeColor}22`,
+                                padding: '2px 6px',
+                                borderRadius: '4px',
+                              }}
+                            >
+                              {z.badge}
+                            </span>
+                          </div>
+                          <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', display: 'block', marginTop: '2px' }}>
+                            {z.areas}
+                          </span>
+                        </div>
+                        <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                          <strong style={{ fontSize: '0.95rem', color: z.isAvailable ? 'var(--primary)' : '#ef4444' }}>
+                            {z.isAvailable ? `₹${z.fee}` : 'Unavailable'}
+                          </strong>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+
+              {isDeliveryOutOfRange && (
+                <div
+                  style={{
+                    background: 'rgba(239, 68, 68, 0.12)',
+                    border: '1px solid rgba(239, 68, 68, 0.35)',
+                    borderRadius: '12px',
+                    padding: '0.75rem',
+                    marginBottom: '0.85rem',
+                    fontSize: '0.8rem',
+                    color: '#fca5a5',
+                    lineHeight: 1.45,
+                  }}
+                >
+                  <strong>⚠️ Delivery Distance Limit:</strong> We currently provide home delivery within <strong>15 km of Nandakumar</strong>. For locations beyond 15 km, please choose <strong>🏛️ Dine-In</strong> or <strong>🚗 Takeaway Highway Pickup</strong>!
+                </div>
+              )}
+
               {addresses.length > 0 && (
                 <div style={{ marginBottom: '0.65rem' }}>
                   <span style={{ ...LABEL_STYLE, marginBottom: '0.4rem' }}>1-Tap Saved Address:</span>
@@ -414,10 +561,10 @@ export default function Checkout() {
                 </div>
               )}
 
-              <label style={LABEL_STYLE}>Delivery Address (Bhabanipur / Nandakumar):</label>
+              <label style={LABEL_STYLE}>Delivery Address Details:</label>
               <input
                 type="text"
-                required
+                required={!isDeliveryOutOfRange}
                 value={address}
                 onChange={(e) => setAddress(e.target.value)}
                 placeholder="House / Village, Landmark, Nandakumar"
@@ -479,7 +626,7 @@ export default function Checkout() {
           )}
         </div>
 
-        {/* ═══ 4. UPI Payment (Device-Adaptive) ══════════════════════════ */}
+        {/* ═══ 4. Payment Method & Options ═══════════════════════════════ */}
         <div
           style={{
             background: 'var(--surface)',
@@ -494,212 +641,302 @@ export default function Checkout() {
           <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '3px', background: 'linear-gradient(90deg, var(--primary) 0%, var(--primary-dark) 100%)', borderRadius: '20px 20px 0 0' }} />
 
           <span style={sectionLabelStyle}>
-            ⚡ 4. Select Payment Amount & Pay UPI
+            💳 4. Choose Payment Method
           </span>
 
-          {/* Compact 2-way toggle for Advance vs Full payment */}
+          {/* Payment Method Selector (Cash Offline vs UPI Online) */}
           <div
             style={{
               display: 'grid',
               gridTemplateColumns: '1fr 1fr',
-              gap: '0.4rem',
-              marginBottom: '0.9rem',
-              background: 'var(--surface-2)',
-              padding: '4px',
-              borderRadius: '12px',
-              border: '1px solid var(--border-strong)',
-            }}
-          >
-            <button
-              type="button"
-              onClick={() => setPaymentMode('advance')}
-              style={{
-                padding: '0.55rem 0.4rem',
-                borderRadius: '8px',
-                border: 'none',
-                background: paymentMode === 'advance' ? 'linear-gradient(135deg, var(--primary), var(--primary-dark))' : 'transparent',
-                color: paymentMode === 'advance' ? '#111' : 'var(--text-muted)',
-                fontWeight: 800,
-                fontSize: '0.80rem',
-                cursor: 'pointer',
-                transition: 'all 0.18s ease',
-                fontFamily: 'inherit',
-                textAlign: 'center',
-                lineHeight: 1.25,
-              }}
-            >
-              <span>⚡ 50% Advance</span>
-              <strong style={{ display: 'block', fontSize: '0.95rem', marginTop: '2px' }}>₹{advancePayable}</strong>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setPaymentMode('full')}
-              style={{
-                padding: '0.55rem 0.4rem',
-                borderRadius: '8px',
-                border: 'none',
-                background: paymentMode === 'full' ? 'linear-gradient(135deg, #22c55e, #16a34a)' : 'transparent',
-                color: paymentMode === 'full' ? '#fff' : 'var(--text-muted)',
-                fontWeight: 800,
-                fontSize: '0.80rem',
-                cursor: 'pointer',
-                transition: 'all 0.18s ease',
-                fontFamily: 'inherit',
-                textAlign: 'center',
-                lineHeight: 1.25,
-              }}
-            >
-              <span>💎 100% Full Bill</span>
-              <strong style={{ display: 'block', fontSize: '0.95rem', marginTop: '2px' }}>₹{finalTotal}</strong>
-            </button>
-          </div>
-
-          <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', margin: '0 0 0.85rem', lineHeight: 1.45 }}>
-            {paymentMode === 'full' ? (
-              <span>
-                Pay <strong style={{ color: 'var(--garden-green-light)' }}>100% Full Bill (₹{finalTotal})</strong> now · <span style={{ color: 'var(--garden-green-light)', fontWeight: 700 }}>Zero cash needed on arrival! 🎉</span>
-              </span>
-            ) : (
-              <span>
-                Pay <strong style={{ color: 'var(--primary)' }}>50% Advance (₹{advancePayable})</strong> now · Balance <strong>₹{balanceDue}</strong> on food arrival.
-              </span>
-            )}
-          </p>
-
-          {/* UPI ID row */}
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.75rem',
-              background: 'var(--surface-2)',
-              border: '1px solid var(--border-strong)',
-              borderRadius: '12px',
-              padding: '0.65rem 0.9rem',
+              gap: '0.5rem',
               marginBottom: '1rem',
-              flexWrap: 'wrap',
             }}
           >
-            <div style={{ flex: 1 }}>
-              <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', display: 'block', fontWeight: 600 }}>UPI ID · {UPI_BANK}</span>
-              <code style={{ fontSize: '0.95rem', color: 'var(--primary)', fontWeight: 900, letterSpacing: '0.02em' }}>{UPI_ID}</code>
-            </div>
-            <CopyUpiButton upiId={UPI_ID} />
+            <button
+              type="button"
+              onClick={() => setPaymentMethod('cash')}
+              style={{
+                padding: '0.75rem 0.5rem',
+                borderRadius: '12px',
+                border: paymentMethod === 'cash' ? '2px solid var(--primary)' : '1px solid var(--border-strong)',
+                background: paymentMethod === 'cash' ? 'rgba(245,158,11,0.15)' : 'var(--surface-2)',
+                color: paymentMethod === 'cash' ? 'var(--primary)' : 'var(--text-secondary)',
+                fontWeight: 800,
+                fontSize: '0.85rem',
+                cursor: 'pointer',
+                textAlign: 'center',
+                fontFamily: 'inherit',
+                transition: 'all 0.18s ease',
+              }}
+            >
+              <strong style={{ display: 'block', fontSize: '0.92rem' }}>💵 Pay Cash Offline</strong>
+              <span style={{ fontSize: '0.72rem', opacity: 0.85 }}>
+                {orderType === 'delivery' ? 'Cash on Delivery (COD)' : orderType === 'takeaway' ? 'Pay at Counter' : 'Pay at Table / Counter'}
+              </span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setPaymentMethod('upi')}
+              style={{
+                padding: '0.75rem 0.5rem',
+                borderRadius: '12px',
+                border: paymentMethod === 'upi' ? '2px solid #22c55e' : '1px solid var(--border-strong)',
+                background: paymentMethod === 'upi' ? 'rgba(34,197,94,0.15)' : 'var(--surface-2)',
+                color: paymentMethod === 'upi' ? 'var(--garden-green-light)' : 'var(--text-secondary)',
+                fontWeight: 800,
+                fontSize: '0.85rem',
+                cursor: 'pointer',
+                textAlign: 'center',
+                fontFamily: 'inherit',
+                transition: 'all 0.18s ease',
+              }}
+            >
+              <strong style={{ display: 'block', fontSize: '0.92rem' }}>⚡ UPI / Online QR</strong>
+              <span style={{ fontSize: '0.72rem', opacity: 0.85 }}>GPay · PhonePe · Paytm</span>
+            </button>
           </div>
 
-          {/* ── MOBILE: Deep-link UPI App buttons ── */}
-          {isMobile ? (
-            <div style={{ marginBottom: '1rem' }}>
-              <span style={{ fontSize: '0.75rem', color: 'var(--primary)', fontWeight: 700, textTransform: 'uppercase', display: 'block', marginBottom: '0.5rem', letterSpacing: '0.04em' }}>
-                ⚡ Tap to Pay via App:
-              </span>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
-                {[
-                  { label: 'Google Pay', dot: '#0f9d58', short: 'GPay' },
-                  { label: 'PhonePe', dot: '#5f259f', short: 'PhonePe' },
-                  { label: 'Paytm', dot: '#00baf2', short: 'Paytm' },
-                ].map((app) => (
-                  <a
-                    key={app.label}
-                    href={upiDeepLink}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      gap: '0.4rem',
-                      padding: '0.65rem',
-                      background: 'var(--surface-2)',
-                      border: '1px solid var(--border-strong)',
-                      borderRadius: '10px',
-                      color: 'var(--text-primary)',
-                      textDecoration: 'none',
-                      fontWeight: 700,
-                      fontSize: '0.85rem',
-                      transition: 'border-color 0.15s ease',
-                    }}
-                    onMouseEnter={(e) => { e.currentTarget.style.borderColor = app.dot }}
-                    onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'var(--border-strong)' }}
-                  >
-                    <span style={{ width: '10px', height: '10px', borderRadius: '50%', background: app.dot, flexShrink: 0 }} />
-                    {app.short}
-                  </a>
-                ))}
-                <a
-                  href={upiDeepLink}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: '0.4rem',
-                    padding: '0.65rem',
-                    background: paymentMode === 'full' ? 'linear-gradient(135deg, #22c55e, #16a34a)' : 'linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%)',
-                    border: 'none',
-                    borderRadius: '10px',
-                    color: paymentMode === 'full' ? '#fff' : '#111',
-                    textDecoration: 'none',
-                    fontWeight: 900,
-                    fontSize: '0.88rem',
-                    boxShadow: 'var(--shadow-primary)',
-                  }}
-                >
-                  ⚡ Pay ₹{payableNow}
-                </a>
+          {/* If Cash Offline is Selected */}
+          {paymentMethod === 'cash' ? (
+            <div
+              style={{
+                background: 'rgba(34,197,94,0.08)',
+                border: '1px solid rgba(34,197,94,0.25)',
+                borderRadius: '14px',
+                padding: '1rem',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.75rem',
+              }}
+            >
+              <span style={{ fontSize: '1.8rem' }}>💵</span>
+              <div>
+                <strong style={{ fontSize: '0.92rem', color: 'var(--garden-green-light)', display: 'block', marginBottom: '2px' }}>
+                  {orderType === 'delivery'
+                    ? 'Cash on Delivery (COD) Selected'
+                    : orderType === 'takeaway'
+                    ? 'Pay Cash at Pickup Counter'
+                    : 'Pay at Table or Counter'}
+                </strong>
+                <span style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', lineHeight: 1.45, display: 'block' }}>
+                  {orderType === 'delivery'
+                    ? `Please keep exact cash ₹${finalTotal} ready for the rider upon food arrival.`
+                    : orderType === 'takeaway'
+                    ? `Your order will be cooked hot. Pay ₹${finalTotal} at the counter when collecting.`
+                    : `Enjoy your dining experience! Pay ₹${finalTotal} at your table or counter.`}
+                </span>
               </div>
             </div>
           ) : (
-            /* ── DESKTOP: Show QR code to scan ── */
-            <div style={{ display: 'flex', gap: '1rem', alignItems: 'flex-start', marginBottom: '1rem', flexWrap: 'wrap' }}>
+            /* If UPI Online is Selected */
+            <div>
+              {/* Compact 2-way toggle for Advance vs Full payment */}
               <div
                 style={{
-                  background: '#fff',
-                  padding: '6px',
+                  display: 'grid',
+                  gridTemplateColumns: '1fr 1fr',
+                  gap: '0.4rem',
+                  marginBottom: '0.9rem',
+                  background: 'var(--surface-2)',
+                  padding: '4px',
                   borderRadius: '12px',
-                  boxShadow: '0 4px 16px rgba(0,0,0,0.4)',
-                  flexShrink: 0,
+                  border: '1px solid var(--border-strong)',
                 }}
               >
-                <img src={dynamicQrSrc} alt="UPI QR Code" style={{ width: '140px', height: '140px', display: 'block', borderRadius: '8px' }} />
+                <button
+                  type="button"
+                  onClick={() => setPaymentMode('advance')}
+                  style={{
+                    padding: '0.55rem 0.4rem',
+                    borderRadius: '8px',
+                    border: 'none',
+                    background: paymentMode === 'advance' ? 'linear-gradient(135deg, var(--primary), var(--primary-dark))' : 'transparent',
+                    color: paymentMode === 'advance' ? '#111' : 'var(--text-muted)',
+                    fontWeight: 800,
+                    fontSize: '0.80rem',
+                    cursor: 'pointer',
+                    transition: 'all 0.18s ease',
+                    fontFamily: 'inherit',
+                    textAlign: 'center',
+                    lineHeight: 1.25,
+                  }}
+                >
+                  <span>⚡ 50% Advance</span>
+                  <strong style={{ display: 'block', fontSize: '0.95rem', marginTop: '2px' }}>₹{advancePayable}</strong>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setPaymentMode('full')}
+                  style={{
+                    padding: '0.55rem 0.4rem',
+                    borderRadius: '8px',
+                    border: 'none',
+                    background: paymentMode === 'full' ? 'linear-gradient(135deg, #22c55e, #16a34a)' : 'transparent',
+                    color: paymentMode === 'full' ? '#fff' : 'var(--text-muted)',
+                    fontWeight: 800,
+                    fontSize: '0.80rem',
+                    cursor: 'pointer',
+                    transition: 'all 0.18s ease',
+                    fontFamily: 'inherit',
+                    textAlign: 'center',
+                    lineHeight: 1.25,
+                  }}
+                >
+                  <span>💎 100% Full Bill</span>
+                  <strong style={{ display: 'block', fontSize: '0.95rem', marginTop: '2px' }}>₹{finalTotal}</strong>
+                </button>
               </div>
-              <div style={{ flex: 1 }}>
-                <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', lineHeight: 1.55, margin: '0 0 0.6rem' }}>
-                  Scan with <strong style={{ color: 'var(--text-primary)' }}>GPay / PhonePe / Paytm</strong> or any UPI app on your phone camera.
-                </p>
-                <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-                  {['📱 Google Pay', '📱 PhonePe', '📱 Paytm', '📱 BHIM'].map((app) => (
-                    <span
-                      key={app}
-                      style={{ padding: '0.28rem 0.65rem', background: 'var(--surface-2)', border: '1px solid var(--border-strong)', borderRadius: 'var(--radius-full)', fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 600 }}
-                    >
-                      {app}
-                    </span>
-                  ))}
+
+              <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', margin: '0 0 0.85rem', lineHeight: 1.45 }}>
+                {paymentMode === 'full' ? (
+                  <span>
+                    Pay <strong style={{ color: 'var(--garden-green-light)' }}>100% Full Bill (₹{finalTotal})</strong> now · <span style={{ color: 'var(--garden-green-light)', fontWeight: 700 }}>Zero cash needed on arrival! 🎉</span>
+                  </span>
+                ) : (
+                  <span>
+                    Pay <strong style={{ color: 'var(--primary)' }}>50% Advance (₹{advancePayable})</strong> now · Balance <strong>₹{balanceDue}</strong> on food arrival.
+                  </span>
+                )}
+              </p>
+
+              {/* UPI ID row */}
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.75rem',
+                  background: 'var(--surface-2)',
+                  border: '1px solid var(--border-strong)',
+                  borderRadius: '12px',
+                  padding: '0.65rem 0.9rem',
+                  marginBottom: '1rem',
+                  flexWrap: 'wrap',
+                }}
+              >
+                <div style={{ flex: 1 }}>
+                  <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', display: 'block', fontWeight: 600 }}>UPI ID · {UPI_BANK}</span>
+                  <code style={{ fontSize: '0.95rem', color: 'var(--primary)', fontWeight: 900, letterSpacing: '0.02em' }}>{UPI_ID}</code>
                 </div>
+                <CopyUpiButton upiId={UPI_ID} />
+              </div>
+
+              {/* ── MOBILE: Deep-link UPI App buttons ── */}
+              {isMobile ? (
+                <div style={{ marginBottom: '1rem' }}>
+                  <span style={{ fontSize: '0.75rem', color: 'var(--primary)', fontWeight: 700, textTransform: 'uppercase', display: 'block', marginBottom: '0.5rem', letterSpacing: '0.04em' }}>
+                    ⚡ Tap to Pay via App:
+                  </span>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
+                    {[
+                      { label: 'Google Pay', dot: '#0f9d58', short: 'GPay' },
+                      { label: 'PhonePe', dot: '#5f259f', short: 'PhonePe' },
+                      { label: 'Paytm', dot: '#00baf2', short: 'Paytm' },
+                    ].map((app) => (
+                      <a
+                        key={app.label}
+                        href={upiDeepLink}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: '0.4rem',
+                          padding: '0.65rem',
+                          background: 'var(--surface-2)',
+                          border: '1px solid var(--border-strong)',
+                          borderRadius: '10px',
+                          color: 'var(--text-primary)',
+                          textDecoration: 'none',
+                          fontWeight: 700,
+                          fontSize: '0.85rem',
+                          transition: 'border-color 0.15s ease',
+                        }}
+                        onMouseEnter={(e) => { e.currentTarget.style.borderColor = app.dot }}
+                        onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'var(--border-strong)' }}
+                      >
+                        <span style={{ width: '10px', height: '10px', borderRadius: '50%', background: app.dot, flexShrink: 0 }} />
+                        {app.short}
+                      </a>
+                    ))}
+                    <a
+                      href={upiDeepLink}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '0.4rem',
+                        padding: '0.65rem',
+                        background: paymentMode === 'full' ? 'linear-gradient(135deg, #22c55e, #16a34a)' : 'linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%)',
+                        border: 'none',
+                        borderRadius: '10px',
+                        color: paymentMode === 'full' ? '#fff' : '#111',
+                        textDecoration: 'none',
+                        fontWeight: 900,
+                        fontSize: '0.88rem',
+                        boxShadow: 'var(--shadow-primary)',
+                      }}
+                    >
+                      ⚡ Pay ₹{payableNow}
+                    </a>
+                  </div>
+                </div>
+              ) : (
+                /* ── DESKTOP: Show QR code to scan ── */
+                <div style={{ display: 'flex', gap: '1rem', alignItems: 'flex-start', marginBottom: '1rem', flexWrap: 'wrap' }}>
+                  <div
+                    style={{
+                      background: '#fff',
+                      padding: '6px',
+                      borderRadius: '12px',
+                      boxShadow: '0 4px 16px rgba(0,0,0,0.4)',
+                      flexShrink: 0,
+                    }}
+                  >
+                    <img src={dynamicQrSrc} alt="UPI QR Code" style={{ width: '140px', height: '140px', display: 'block', borderRadius: '8px' }} />
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', lineHeight: 1.55, margin: '0 0 0.6rem' }}>
+                      Scan with <strong style={{ color: 'var(--text-primary)' }}>GPay / PhonePe / Paytm</strong> or any UPI app on your phone camera.
+                    </p>
+                    <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                      {['📱 Google Pay', '📱 PhonePe', '📱 Paytm', '📱 BHIM'].map((app) => (
+                        <span
+                          key={app}
+                          style={{ padding: '0.28rem 0.65rem', background: 'var(--surface-2)', border: '1px solid var(--border-strong)', borderRadius: 'var(--radius-full)', fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 600 }}
+                        >
+                          {app}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* UTR Input */}
+              <div>
+                <label style={{ ...LABEL_STYLE, color: 'var(--text-secondary)' }}>
+                  Enter UPI UTR / Transaction ID (12 digits — from GPay/PhonePe/Paytm):
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={utr}
+                  onChange={(e) => setUtr(e.target.value.replace(/\D/g, '').slice(0, 12))}
+                  placeholder="e.g. 419204918231"
+                  style={{ ...INPUT_STYLE, border: '1.5px solid rgba(245,158,11,0.5)', fontWeight: 700, letterSpacing: '0.08em', fontSize: '1rem' }}
+                  onFocus={(e) => { e.currentTarget.style.borderColor = 'var(--primary)'; e.currentTarget.style.boxShadow = '0 0 0 3px rgba(245,158,11,0.15)' }}
+                  onBlur={(e) => { e.currentTarget.style.borderColor = 'rgba(245,158,11,0.5)'; e.currentTarget.style.boxShadow = 'none' }}
+                  maxLength={12}
+                  inputMode="numeric"
+                />
+                <p style={{ fontSize: '0.72rem', color: 'var(--text-faint)', margin: '0.35rem 0 0' }}>
+                  Find UTR in: GPay → Transaction → Reference ID · PhonePe → History → UPI Ref No.
+                </p>
               </div>
             </div>
           )}
-
-          {/* UTR Input */}
-          <div>
-            <label style={{ ...LABEL_STYLE, color: 'var(--text-secondary)' }}>
-              Enter UPI UTR / Transaction ID (12 digits — from GPay/PhonePe/Paytm):
-            </label>
-            <input
-              type="text"
-              required
-              value={utr}
-              onChange={(e) => setUtr(e.target.value.replace(/\D/g, '').slice(0, 12))}
-              placeholder="e.g. 419204918231"
-              style={{ ...INPUT_STYLE, border: '1.5px solid rgba(245,158,11,0.5)', fontWeight: 700, letterSpacing: '0.08em', fontSize: '1rem' }}
-              onFocus={(e) => { e.currentTarget.style.borderColor = 'var(--primary)'; e.currentTarget.style.boxShadow = '0 0 0 3px rgba(245,158,11,0.15)' }}
-              onBlur={(e) => { e.currentTarget.style.borderColor = 'rgba(245,158,11,0.5)'; e.currentTarget.style.boxShadow = 'none' }}
-              maxLength={12}
-              inputMode="numeric"
-            />
-            <p style={{ fontSize: '0.72rem', color: 'var(--text-faint)', margin: '0.35rem 0 0' }}>
-              Find UTR in: GPay → Transaction → Reference ID · PhonePe → History → UPI Ref No.
-            </p>
-          </div>
         </div>
 
         {/* ═══ 5. Bill Summary ════════════════════════════════════════════ */}
@@ -717,10 +954,12 @@ export default function Checkout() {
               <span>Food Subtotal</span>
               <strong style={{ color: 'var(--text-primary)' }}>₹{cartTotal}</strong>
             </div>
-            {deliveryFee > 0 && (
+            {orderType === 'delivery' && (
               <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <span>Delivery Fee</span>
-                <strong style={{ color: 'var(--text-primary)' }}>₹{deliveryFee}</strong>
+                <span>Delivery Fee ({selectedZone.shortLabel})</span>
+                <strong style={{ color: selectedZone.isAvailable ? 'var(--text-primary)' : '#ef4444' }}>
+                  {selectedZone.isAvailable ? `₹${deliveryFee}` : 'Out of Area'}
+                </strong>
               </div>
             )}
             {discount > 0 && (
@@ -733,31 +972,62 @@ export default function Checkout() {
               <strong style={{ color: 'var(--text-primary)', fontWeight: 900 }}>Total Bill</strong>
               <strong style={{ color: 'var(--primary)', fontWeight: 900 }}>₹{finalTotal}</strong>
             </div>
+
+            {/* Payment Summary Box */}
             <div
               style={{
                 display: 'flex',
                 justifyContent: 'space-between',
-                background: paymentMode === 'full' ? 'rgba(34,197,94,0.12)' : 'rgba(245,158,11,0.1)',
+                background: paymentMethod === 'cash'
+                  ? 'rgba(34,197,94,0.12)'
+                  : paymentMode === 'full'
+                  ? 'rgba(34,197,94,0.12)'
+                  : 'rgba(245,158,11,0.1)',
                 borderRadius: '10px',
                 padding: '0.55rem 0.75rem',
-                border: `1px solid ${paymentMode === 'full' ? 'rgba(34,197,94,0.3)' : 'rgba(245,158,11,0.25)'}`,
+                border: `1px solid ${
+                  paymentMethod === 'cash' || paymentMode === 'full'
+                    ? 'rgba(34,197,94,0.3)'
+                    : 'rgba(245,158,11,0.25)'
+                }`,
               }}
             >
-              <span style={{ color: paymentMode === 'full' ? 'var(--garden-green-light)' : 'var(--primary)', fontWeight: 700 }}>
-                {paymentMode === 'full' ? '💎 Pay Now (100% Full Payment)' : '⚡ Pay Now (50% Advance)'}
+              <span
+                style={{
+                  color: paymentMethod === 'cash' || paymentMode === 'full'
+                    ? 'var(--garden-green-light)'
+                    : 'var(--primary)',
+                  fontWeight: 700,
+                }}
+              >
+                {paymentMethod === 'cash'
+                  ? (orderType === 'delivery' ? '💵 Cash on Delivery (100% on Arrival)' : '💵 Cash Payment at Table / Counter')
+                  : paymentMode === 'full'
+                  ? '💎 Pay Online (100% Full Payment)'
+                  : '⚡ Pay Online (50% Advance)'}
               </span>
-              <strong style={{ color: paymentMode === 'full' ? 'var(--garden-green-light)' : 'var(--primary)', fontWeight: 900 }}>
+              <strong
+                style={{
+                  color: paymentMethod === 'cash' || paymentMode === 'full'
+                    ? 'var(--garden-green-light)'
+                    : 'var(--primary)',
+                  fontWeight: 900,
+                }}
+              >
                 ₹{payableNow}
               </strong>
             </div>
-            {balanceDue > 0 ? (
+
+            {paymentMethod === 'upi' && balanceDue > 0 ? (
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.78rem', color: 'var(--text-muted)', padding: '0 0.25rem' }}>
                 <span>Balance Due on Delivery / Table:</span>
                 <strong style={{ color: 'var(--text-secondary)' }}>₹{balanceDue}</strong>
               </div>
             ) : (
               <div style={{ fontSize: '0.75rem', color: 'var(--garden-green-light)', textAlign: 'center', fontWeight: 700, padding: '0.1rem 0' }}>
-                ✓ Zero cash payment needed on arrival!
+                {paymentMethod === 'cash'
+                  ? `✓ Pay ₹${finalTotal} cash when receiving food.`
+                  : '✓ Zero cash payment needed on arrival!'}
               </div>
             )}
           </div>
@@ -766,23 +1036,37 @@ export default function Checkout() {
         {/* ═══ Submit ═════════════════════════════════════════════════════ */}
         <button
           type="submit"
-          disabled={loading}
+          disabled={loading || isDeliveryOutOfRange}
           className="btn-order"
           style={{
-            background: loading ? 'var(--surface-2)' : 'linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%)',
-            color: loading ? 'var(--text-muted)' : '#111',
+            background: isDeliveryOutOfRange
+              ? '#27272a'
+              : loading
+              ? 'var(--surface-2)'
+              : paymentMethod === 'cash'
+              ? 'linear-gradient(135deg, #10b981 0%, #059669 100%)'
+              : 'linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%)',
+            color: isDeliveryOutOfRange || loading ? 'var(--text-muted)' : '#111',
             padding: '1rem',
             borderRadius: '16px',
             border: 'none',
             fontWeight: 900,
             fontSize: '1.05rem',
-            cursor: loading ? 'not-allowed' : 'pointer',
-            boxShadow: loading ? 'none' : 'var(--shadow-primary)',
+            cursor: loading || isDeliveryOutOfRange ? 'not-allowed' : 'pointer',
+            boxShadow: isDeliveryOutOfRange || loading ? 'none' : 'var(--shadow-primary)',
             transition: 'all 0.25s ease',
             width: '100%',
           }}
         >
-          {loading ? '⏳ Placing Food Order...' : `🚀 Confirm & Place Order — Pay ₹${payableNow}`}
+          {loading
+            ? '⏳ Placing Food Order...'
+            : isDeliveryOutOfRange
+            ? '🚫 Out of Delivery Area (>15 km)'
+            : paymentMethod === 'cash'
+            ? `🚀 Confirm Order — Pay ₹${finalTotal} Cash on Arrival`
+            : paymentMode === 'full'
+            ? `🚀 Confirm Order — Pay ₹${finalTotal} via UPI`
+            : `🚀 Confirm Order — Pay ₹${payableNow} Advance`}
         </button>
       </form>
     </div>
