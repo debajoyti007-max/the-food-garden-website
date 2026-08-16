@@ -7,25 +7,43 @@ import { orderStatusWhatsAppUrl, paymentVerifiedWhatsAppUrl, formatWhatsAppPhone
 import { showToast } from '../../components/Toast'
 import type { OrderStatus } from '../../types'
 
-// 🔔 Play audio chime when new order arrives
-function playOrderChime() {
-  try {
-    const ctx = new (window.AudioContext || (window as any).webkitAudioContext)()
-    const osc = ctx.createOscillator()
-    const gain = ctx.createGain()
-    osc.connect(gain)
-    gain.connect(ctx.destination)
-    osc.type = 'sine'
-    osc.frequency.setValueAtTime(880, ctx.currentTime)
-    osc.frequency.setValueAtTime(660, ctx.currentTime + 0.15)
-    osc.frequency.setValueAtTime(880, ctx.currentTime + 0.3)
-    gain.gain.setValueAtTime(0.4, ctx.currentTime)
-    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.6)
-    osc.start(ctx.currentTime)
-    osc.stop(ctx.currentTime + 0.65)
-  } catch {
-    // Silently ignore if audio not available
+// 🔔 Loud restaurant-grade 3-chime alarm
+function playKitchenAlarm(times = 3) {
+  let count = 0
+  const ring = () => {
+    try {
+      const ctx = new (window.AudioContext || (window as any).webkitAudioContext)()
+      // Chime 1 — high note
+      const o1 = ctx.createOscillator(); const g1 = ctx.createGain()
+      o1.connect(g1); g1.connect(ctx.destination)
+      o1.type = 'triangle'
+      o1.frequency.setValueAtTime(1046, ctx.currentTime) // C6
+      g1.gain.setValueAtTime(0.8, ctx.currentTime)
+      g1.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.4)
+      o1.start(ctx.currentTime); o1.stop(ctx.currentTime + 0.4)
+      // Chime 2 — mid note
+      const o2 = ctx.createOscillator(); const g2 = ctx.createGain()
+      o2.connect(g2); g2.connect(ctx.destination)
+      o2.type = 'triangle'
+      o2.frequency.setValueAtTime(784, ctx.currentTime + 0.45) // G5
+      g2.gain.setValueAtTime(0.7, ctx.currentTime + 0.45)
+      g2.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.85)
+      o2.start(ctx.currentTime + 0.45); o2.stop(ctx.currentTime + 0.85)
+      // Chime 3 — resolution note
+      const o3 = ctx.createOscillator(); const g3 = ctx.createGain()
+      o3.connect(g3); g3.connect(ctx.destination)
+      o3.type = 'triangle'
+      o3.frequency.setValueAtTime(880, ctx.currentTime + 0.9) // A5
+      g3.gain.setValueAtTime(0.8, ctx.currentTime + 0.9)
+      g3.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 1.4)
+      o3.start(ctx.currentTime + 0.9); o3.stop(ctx.currentTime + 1.4)
+    } catch {}
+    // Vibrate phone 3 times
+    try { navigator.vibrate?.([300, 150, 300, 150, 300]) } catch {}
+    count++
+    if (count < times) setTimeout(ring, 1800)
   }
+  ring()
 }
 
 type FilterTab = 'active' | 'utr' | 'ready' | 'done' | 'cancelled' | 'all'
@@ -34,15 +52,22 @@ export default function SellerOrders() {
   const { orders, updateOrderStatus, verifyUtr, deleteOrder, lang } = useStore()
   const [filter, setFilter] = useState<FilterTab>('active')
   const [search, setSearch] = useState('')
+  const [newOrderBanner, setNewOrderBanner] = useState<string | null>(null)
   const prevOrderCount = useRef(orders.length)
+  const bannerTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  // 🔔 Sound alert on new incoming order
+  // 🔔 Loud alarm + flashing banner on new incoming order
   useEffect(() => {
     if (orders.length > prevOrderCount.current) {
       const newPending = orders.filter((o) => o.status === 'pending')
       if (newPending.length > 0) {
-        playOrderChime()
-        showToast(`🔔 New Order Arrived! #${formatOrderId(newPending[0].id)}`, '🍽️')
+        const latest = newPending[0]
+        playKitchenAlarm(3)
+        setNewOrderBanner(`🔔 NEW ORDER — ${latest.userName} | ${latest.items.map(i => i.name).join(', ')}`)
+        showToast(`🔔 New Order! #${formatOrderId(latest.id)} — Tap to view`, '🍽️')
+        // Auto-dismiss banner after 12 seconds
+        if (bannerTimer.current) clearTimeout(bannerTimer.current)
+        bannerTimer.current = setTimeout(() => setNewOrderBanner(null), 12000)
       }
     }
     prevOrderCount.current = orders.length
@@ -92,15 +117,11 @@ export default function SellerOrders() {
 
   const handleVerify = async (o: any) => {
     await verifyUtr(o.id, true)
-    try {
-      window.open(paymentVerifiedWhatsAppUrl(o, lang), '_blank')
-    } catch {}
     showToast('✅ UTR Verified — Order sent to Kitchen!', '👨‍🍳')
   }
 
   const handleStatus = async (o: any, status: OrderStatus) => {
     await updateOrderStatus(o.id, status)
-    window.open(orderStatusWhatsAppUrl(o, status), '_blank')
     const labels: Record<string, string> = { ready: '🍽️ Ready to Serve!', delivered: '✅ Marked as Delivered!', cancelled: '❌ Order Cancelled!' }
     showToast(labels[status] || `Status: ${status}`, '📱')
   }
@@ -132,6 +153,26 @@ export default function SellerOrders() {
 
   return (
     <div style={{ maxWidth: '860px', margin: '0 auto', paddingBottom: '3rem', color: '#fafaf9' }}>
+
+      {/* 🔔 Flashing New Order Alert Banner */}
+      {newOrderBanner && (
+        <div
+          onClick={() => { setNewOrderBanner(null); setFilter('active') }}
+          style={{
+            position: 'fixed', top: 0, left: 0, right: 0, zIndex: 9999,
+            background: 'linear-gradient(90deg, #ef4444, #dc2626)',
+            color: '#fff', padding: '0.9rem 1.25rem',
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+            gap: '0.75rem', cursor: 'pointer',
+            animation: 'flashBanner 0.5s ease-in-out infinite alternate',
+            boxShadow: '0 4px 24px rgba(239,68,68,0.6)',
+          }}
+        >
+          <style>{`@keyframes flashBanner { from { opacity:1; } to { opacity:0.75; } }`}</style>
+          <span style={{ fontWeight: 900, fontSize: '0.92rem' }}>🔔 {newOrderBanner}</span>
+          <span style={{ fontSize: '0.78rem', opacity: 0.85, flexShrink: 0 }}>Tap to dismiss ×</span>
+        </div>
+      )}
 
       {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.85rem' }}>

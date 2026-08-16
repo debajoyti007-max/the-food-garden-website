@@ -55,3 +55,33 @@ export function paymentVerifiedWhatsAppUrl(order: Order, lang: 'en' | 'bn') {
   )
   return `https://wa.me/${phone}?text=${msg}`
 }
+
+// ── Admin New Order Alert (sends to TFG owner phone) ─────────────────────────
+export function adminNewOrderAlertUrl(order: Order): string {
+  const shortId = formatOrderId(order.id)
+  const typeIcon = order.orderType === 'dine_in' ? '🏛️' : order.orderType === 'takeaway' ? '🚗' : '🏡'
+  const location = order.orderType === 'dine_in'
+    ? `Seating: ${order.tableNo || 'Dine-In'}`
+    : order.orderType === 'takeaway'
+      ? `Takeaway / Car Pickup`
+      : `Delivery: ${order.address}`
+
+  const itemLines = order.items.map(it =>
+    `  • ${it.emoji} ${it.name} (${it.portion === 'A' ? 'Family' : it.portion === 'B' ? 'Full' : 'Half'}) × ${it.qty}`
+  ).join('\n')
+
+  const msg = encodeURIComponent(
+    `🔔 *নতুন অর্ডার — TFG #${shortId}*\n` +
+    `━━━━━━━━━━━━━━━━━━━\n` +
+    `👤 ${order.userName} · 📱 ${order.phone}\n` +
+    `${typeIcon} ${location}\n` +
+    `━━━━━━━━━━━━━━━━━━━\n` +
+    `${itemLines}\n` +
+    `━━━━━━━━━━━━━━━━━━━\n` +
+    `💰 মোট: ₹${order.total} | অগ্রিম: ₹${order.advanceAmount}\n` +
+    `🏦 UTR: ${order.utr}\n` +
+    `━━━━━━━━━━━━━━━━━━━\n` +
+    `✅ চেক করুন: https://the-food-garden.vercel.app/seller/orders`
+  )
+  return `https://wa.me/${SUPPORT_WHATSAPP}?text=${msg}`
+}

@@ -26,6 +26,7 @@ import RiderView from './pages/rider/RiderView'
 import AdminHome from './pages/admin/AdminHome'
 import AdminStaff from './pages/admin/AdminStaff'
 import AdminCoupons from './pages/admin/AdminCoupons'
+import AdminUsers from './pages/admin/AdminUsers'
 
 // ─── Role-Based Route Guard ─────────────────────────────────────────────────
 function RequireRole({ allow, children }: { allow: UserRole[]; children: React.ReactNode }) {
@@ -143,6 +144,14 @@ function AppRoutes() {
           element={
             <RequireRole allow={['admin']}>
               <AdminCoupons />
+            </RequireRole>
+          }
+        />
+        <Route
+          path="admin/users"
+          element={
+            <RequireRole allow={['admin']}>
+              <AdminUsers />
             </RequireRole>
           }
         />

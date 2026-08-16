@@ -56,10 +56,12 @@ export default function AdminHome() {
         {[
           { to: '/seller/orders', icon: '📋', title: 'Live Kitchen Orders', desc: 'Verify UTR, update status & print KOT' },
           { to: '/admin/staff', icon: '👥', title: 'Staff Accounts', desc: 'Create/manage kitchen & rider roles' },
+          { to: '/admin/users', icon: '🗂️', title: 'Customer List', desc: 'View, search, block all registered users' },
           { to: '/seller/products', icon: '🍽️', title: 'Menu & Stock', desc: 'Edit prices and dish availability' },
           { to: '/seller', icon: '📊', title: 'Kitchen Analytics', desc: 'Daily revenue, cost & packing lists' },
           { to: '/admin/coupons', icon: '🏷️', title: 'Promo Coupons', desc: 'Create & manage discount codes' },
           { to: '/track', icon: '📍', title: 'Live Order Tracker', desc: 'Track customer orders in real time' },
+          { to: '/orders', icon: '⭐', title: 'Ratings & Reviews', desc: 'See all customer food star ratings' },
         ].map((item) => (
           <Link
             key={item.to + item.title}

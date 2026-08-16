@@ -3,7 +3,7 @@ import { Link, useParams } from 'react-router-dom'
 import { useStore } from '../context/StoreContext'
 import { STORE_NAME, formatOrderId } from '../lib/business'
 import { printOrderInvoice } from '../lib/printOrder'
-import { customerOrderWhatsAppUrl } from '../lib/whatsapp'
+import { customerOrderWhatsAppUrl, adminNewOrderAlertUrl } from '../lib/whatsapp'
 import { supabase } from '../lib/supabase'
 import type { Order, OrderStatus } from '../types'
 
@@ -113,9 +113,23 @@ export default function OrderSuccess() {
           ))}
         </div>
 
-        <div style={{ borderTop: '1px solid rgba(255,255,255,0.08)', paddingTop: '0.6rem', display: 'flex', justifyContent: 'space-between', fontSize: '0.95rem' }}>
-          <span>Total Advance Paid (50%):</span>
-          <strong style={{ color: '#22c55e' }}>₹{order.advanceAmount} (UTR: {order.utr || 'Pending'})</strong>
+        <div style={{ borderTop: '1px solid rgba(255,255,255,0.08)', paddingTop: '0.6rem', display: 'flex', flexDirection: 'column', gap: '0.3rem', fontSize: '0.9rem' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+            <span>Advance Paid (UPI):</span>
+            <strong style={{ color: '#22c55e' }}>✅ ₹{order.advanceAmount}</strong>
+          </div>
+          {order.total - order.advanceAmount > 0 && (
+            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+              <span>Balance Due on Arrival:</span>
+              <strong style={{ color: '#f59e0b' }}>💵 ₹{order.total - order.advanceAmount}</strong>
+            </div>
+          )}
+          {order.total - order.advanceAmount === 0 && (
+            <div style={{ textAlign: 'center', color: '#22c55e', fontSize: '0.8rem', fontWeight: 700, marginTop: '2px' }}>
+              🎉 Full payment done — Zero cash needed!
+            </div>
+          )}
+          <div style={{ fontSize: '0.75rem', color: '#71717a', marginTop: '2px' }}>UTR Ref: {order.utr || 'Pending verification'}</div>
         </div>
       </div>
 
@@ -127,12 +141,12 @@ export default function OrderSuccess() {
           📍 Track Live Status
         </Link>
         <a
-          href={customerOrderWhatsAppUrl(order, lang)}
+          href={adminNewOrderAlertUrl(order)}
           target="_blank"
           rel="noreferrer"
           style={{ background: '#16a34a', color: '#fff', padding: '0.65rem 1.1rem', borderRadius: '10px', textDecoration: 'none', fontWeight: 700, fontSize: '0.88rem' }}
         >
-          📲 WhatsApp Kitchen
+          📲 Notify Kitchen (WhatsApp)
         </a>
         <button
           type="button"
