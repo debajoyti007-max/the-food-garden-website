@@ -80,7 +80,7 @@ const LABEL_STYLE: React.CSSProperties = {
 
 export default function Checkout() {
   const { user } = useAuth()
-  const { cart, cartTotal, placeOrder, validateCoupon, addresses, saveAddress, lang } = useStore()
+  const { cart, cartTotal, orders, placeOrder, validateCoupon, addresses, saveAddress, lang } = useStore()
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const isMobile = useIsMobile()
@@ -148,6 +148,16 @@ export default function Checkout() {
 
     if (!utr.trim() || utr.trim().length < 6) {
       showToast('Please enter valid UPI UTR / Transaction reference', '⚠️')
+      return
+    }
+
+    // 🛡️ Duplicate UTR Check
+    const cleanUtr = utr.trim().toUpperCase()
+    const duplicateUtrOrder = orders.find(
+      (o) => o.utr && o.utr.trim().toUpperCase() === cleanUtr && o.status !== 'cancelled'
+    )
+    if (duplicateUtrOrder) {
+      showToast('⚠️ This UTR has already been submitted for another order. Please enter your new transaction UTR.', '🚫')
       return
     }
 

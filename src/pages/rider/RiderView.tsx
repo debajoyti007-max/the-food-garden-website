@@ -225,14 +225,37 @@ export default function RiderView() {
                     </div>
                   </div>
 
-                  <div style={{ background: '#121214', borderRadius: '10px', padding: '0.65rem 0.85rem', display: 'flex', alignItems: 'flex-start', gap: '0.5rem', marginBottom: '0.65rem' }}>
-                    <span style={{ fontSize: '1.1rem' }}>📍</span>
-                    <div>
-                      <span style={{ fontSize: '0.72rem', color: '#a1a1aa', display: 'block', textTransform: 'uppercase', fontWeight: 700 }}>
-                        Delivery Destination:
-                      </span>
-                      <span style={{ fontSize: '0.88rem', color: '#fafaf9', fontWeight: 600 }}>{o.address}</span>
+                  <div style={{ background: '#121214', borderRadius: '10px', padding: '0.65rem 0.85rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.5rem', marginBottom: '0.65rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.5rem' }}>
+                      <span style={{ fontSize: '1.1rem' }}>📍</span>
+                      <div>
+                        <span style={{ fontSize: '0.72rem', color: '#a1a1aa', display: 'block', textTransform: 'uppercase', fontWeight: 700 }}>
+                          Delivery Destination:
+                        </span>
+                        <span style={{ fontSize: '0.88rem', color: '#fafaf9', fontWeight: 600 }}>{o.address}</span>
+                      </div>
                     </div>
+                    <a
+                      href={`https://www.google.com/maps/dir/?api=1&destination=${mapQuery}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      style={{
+                        background: '#1e3a8a',
+                        border: '1px solid #3b82f6',
+                        color: '#bfdbfe',
+                        padding: '0.35rem 0.65rem',
+                        borderRadius: '8px',
+                        textDecoration: 'none',
+                        fontWeight: 700,
+                        fontSize: '0.75rem',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '3px',
+                        flexShrink: 0,
+                      }}
+                    >
+                      🗺️ GPS
+                    </a>
                   </div>
                 </div>
 

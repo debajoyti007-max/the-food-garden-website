@@ -53,8 +53,25 @@ export default function SellerOrders() {
   const [filter, setFilter] = useState<FilterTab>('active')
   const [search, setSearch] = useState('')
   const [newOrderBanner, setNewOrderBanner] = useState<string | null>(null)
+  const [audioTested, setAudioTested] = useState(false)
+  const [rushMode, setRushMode] = useState<'normal' | 'rush' | 'peak'>(() => {
+    try { return (localStorage.getItem('tfg_kitchen_rush') as any) || 'normal' } catch { return 'normal' }
+  })
   const prevOrderCount = useRef(orders.length)
   const bannerTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const handleTestAudio = () => {
+    playKitchenAlarm(1)
+    setAudioTested(true)
+    showToast('🔊 Audio Alarm Primed & Ready!', '✅')
+  }
+
+  const handleSetRush = (mode: 'normal' | 'rush' | 'peak') => {
+    setRushMode(mode)
+    try { localStorage.setItem('tfg_kitchen_rush', mode) } catch {}
+    const labels = { normal: '🟢 Normal Kitchen Pace (15–20 min)', rush: '🟡 Rush Hour Pace (30–40 min)', peak: '🔴 Peak Rush (45+ min)' }
+    showToast(labels[mode], '⏱️')
+  }
 
   // 🔔 Loud alarm + flashing banner on new incoming order
   useEffect(() => {
@@ -187,6 +204,56 @@ export default function SellerOrders() {
         </Link>
       </div>
 
+      {/* Kitchen Control Strip: Audio Test & Rush Hour Toggle */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#1c1917', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '12px', padding: '0.65rem 0.85rem', marginBottom: '0.75rem', flexWrap: 'wrap', gap: '0.5rem' }}>
+        <button
+          type="button"
+          onClick={handleTestAudio}
+          style={{
+            background: audioTested ? 'rgba(34,197,94,0.15)' : 'rgba(245,158,11,0.15)',
+            border: `1px solid ${audioTested ? '#22c55e' : '#f59e0b'}`,
+            color: audioTested ? '#22c55e' : '#f59e0b',
+            borderRadius: '8px',
+            padding: '0.35rem 0.75rem',
+            fontSize: '0.78rem',
+            fontWeight: 800,
+            cursor: 'pointer',
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '4px',
+          }}
+        >
+          {audioTested ? '🔊 Sound: Active' : '🔔 Tap to Test Alarm'}
+        </button>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+          <span style={{ fontSize: '0.72rem', color: '#a1a1aa', fontWeight: 600, marginRight: '4px' }}>Rush Level:</span>
+          {[
+            { id: 'normal', label: '🟢 Normal', color: '#22c55e' },
+            { id: 'rush', label: '🟡 Rush', color: '#f59e0b' },
+            { id: 'peak', label: '🔴 Peak', color: '#ef4444' },
+          ].map((r) => (
+            <button
+              key={r.id}
+              type="button"
+              onClick={() => handleSetRush(r.id as any)}
+              style={{
+                background: rushMode === r.id ? r.color : 'transparent',
+                color: rushMode === r.id ? '#18181b' : '#a1a1aa',
+                border: rushMode === r.id ? 'none' : '1px solid #3f3f46',
+                borderRadius: '6px',
+                padding: '2px 8px',
+                fontSize: '0.72rem',
+                fontWeight: 700,
+                cursor: 'pointer',
+              }}
+            >
+              {r.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
       {/* Alert Strip for urgent tabs */}
       {tabCounts.utr > 0 && (
         <div style={{ background: 'rgba(245, 158, 11, 0.15)', border: '1px solid rgba(245, 158, 11, 0.4)', borderRadius: '10px', padding: '0.5rem 0.85rem', marginBottom: '0.75rem', fontSize: '0.82rem', color: '#fbbf24', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -286,6 +353,11 @@ export default function SellerOrders() {
                       <span style={{ background: statusColor[o.status] + '22', color: statusColor[o.status], border: `1px solid ${statusColor[o.status]}44`, borderRadius: '12px', padding: '2px 8px', fontSize: '0.68rem', fontWeight: 900, textTransform: 'uppercase' }}>
                         {o.status}
                       </span>
+                      {isUrgent && (
+                        <span style={{ background: 'rgba(239,68,68,0.2)', color: '#f87171', border: '1px solid rgba(239,68,68,0.5)', borderRadius: '12px', padding: '2px 8px', fontSize: '0.68rem', fontWeight: 900 }}>
+                          ⚠️ DO NOT COOK (UNVERIFIED)
+                        </span>
+                      )}
                     </div>
                     <span style={{ fontSize: '0.82rem', color: '#f59e0b', fontWeight: 700, display: 'block', marginTop: '2px' }}>
                       {o.orderType === 'dine_in' ? `🏛️ Cottage / Table ${o.tableNo || '—'}` : o.orderType === 'takeaway' ? '🚗 Highway Car Pickup' : `🏡 Delivery — ${o.address?.slice(0, 35) || '—'}`}

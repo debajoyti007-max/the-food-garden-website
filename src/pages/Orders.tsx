@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useStore } from '../context/StoreContext'
 import { useAuth } from '../context/AuthContext'
-import { formatOrderId } from '../lib/business'
+import { formatOrderId, GOOGLE_MAPS_REVIEW_URL } from '../lib/business'
 import { printOrderInvoice } from '../lib/printOrder'
 
 const STATUS_COLOR: Record<string, string> = {
@@ -281,11 +281,49 @@ export default function Orders() {
                 border: '1px solid #3f3f46',
                 color: '#fff',
                 fontSize: '0.85rem',
-                marginBottom: '1.25rem',
+                marginBottom: selectedStars === 5 ? '0.75rem' : '1.25rem',
                 outline: 'none',
                 resize: 'none',
               }}
             />
+
+            {/* 🌟 5-Star Google Maps Review Prompt */}
+            {selectedStars === 5 && (
+              <div
+                style={{
+                  background: 'rgba(245,158,11,0.1)',
+                  border: '1px dashed #f59e0b',
+                  borderRadius: '10px',
+                  padding: '0.65rem 0.85rem',
+                  marginBottom: '1rem',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: '0.5rem',
+                }}
+              >
+                <div style={{ fontSize: '0.78rem', color: '#fef3c7' }}>
+                  <strong>Love our food?</strong> Help travelers find us on Google!
+                </div>
+                <a
+                  href={GOOGLE_MAPS_REVIEW_URL}
+                  target="_blank"
+                  rel="noreferrer"
+                  style={{
+                    background: '#f59e0b',
+                    color: '#18181b',
+                    padding: '0.35rem 0.65rem',
+                    borderRadius: '8px',
+                    textDecoration: 'none',
+                    fontWeight: 900,
+                    fontSize: '0.75rem',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  ⭐ Post on Google
+                </a>
+              </div>
+            )}
 
             {/* Action Buttons */}
             <div style={{ display: 'flex', gap: '0.5rem' }}>

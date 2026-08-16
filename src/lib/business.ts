@@ -24,6 +24,9 @@ export const PORTION_LABELS: Record<'A' | 'B' | 'C', { en: string; bn: string }>
   C: { en: 'Half Plate', bn: 'হাফ প্লেট' },
 }
 
+export const GOOGLE_MAPS_LOCATION_URL = 'https://maps.google.com/?q=The+Food+Garden+Bhabanipur+Nandakumar+Digha+Highway'
+export const GOOGLE_MAPS_REVIEW_URL = 'https://search.google.com/local/writereview?placeid=ChIJTheFoodGarden'
+
 export function formatOrderId(id: string): string {
   if (!id) return ''
   return id.replace(/^ord[-_]?/i, '').slice(0, 8).toUpperCase()
