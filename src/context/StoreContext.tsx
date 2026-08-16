@@ -132,8 +132,14 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     void loadOrders()
   }, [loadOrders])
 
-  // ── Real-time Orders Subscription (Debounced to prevent refetch floods) ───
+  // ── Real-time Orders Subscription (Smart connection pooling for high volume) ───
   useEffect(() => {
+    const isStaff = user && STAFF_ROLES.includes(user.role)
+    const hasActiveOrders = orders.some((o) => ['pending', 'advance_paid', 'confirmed', 'cooking', 'ready'].includes(o.status))
+
+    // Casual visitors browsing the menu don't consume WebSocket slots
+    if (!isStaff && !hasActiveOrders) return
+
     let timer: any = null
     const debouncedLoadOrders = () => {
       clearTimeout(timer)
@@ -142,26 +148,19 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       }, 500)
     }
 
+    const channelName = isStaff ? 'public:orders:staff' : `public:orders:user:${user?.id || 'guest'}`
     const ordersChannel = supabase
-      .channel('public:orders:realtime')
+      .channel(channelName)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, () => {
         debouncedLoadOrders()
-      })
-      .subscribe()
-
-    const productsChannel = supabase
-      .channel('public:products:realtime')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'products' }, () => {
-        void loadProducts()
       })
       .subscribe()
 
     return () => {
       clearTimeout(timer)
       supabase.removeChannel(ordersChannel)
-      supabase.removeChannel(productsChannel)
     }
-  }, [loadOrders, loadProducts])
+  }, [user?.role, user?.id, orders.length, loadOrders])
 
   // ── Save & Sync addresses per user ─────────────────────────────────────────
   useEffect(() => {
@@ -286,8 +285,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     const total = Math.max(0, subtotal + deliveryFee - discount)
     const advanceAmount = orderData.advanceAmount !== undefined ? orderData.advanceAmount : Math.ceil(total * ADVANCE_PERCENT)
 
+    // 100% Unique Collision-Proof ID using timestamp + 2-digit random suffix
+    const uniqueId = `TFG-${Date.now().toString().slice(-6)}${Math.floor(10 + Math.random() * 90)}`
+
     const newOrder: Order = {
-      id: `TFG-${Math.floor(100000 + Math.random() * 900000)}`,
+      id: uniqueId,
       userId: orderData.userId || user?.id,
       userName: orderData.userName || user?.name || 'Guest Customer',
       phone: orderData.phone || user?.phone || '',

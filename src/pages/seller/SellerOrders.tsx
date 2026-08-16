@@ -54,11 +54,41 @@ export default function SellerOrders() {
   const [search, setSearch] = useState('')
   const [newOrderBanner, setNewOrderBanner] = useState<string | null>(null)
   const [audioTested, setAudioTested] = useState(false)
+  const [screenLocked, setScreenLocked] = useState(false)
   const [rushMode, setRushMode] = useState<'normal' | 'rush' | 'peak'>(() => {
     try { return (localStorage.getItem('tfg_kitchen_rush') as any) || 'normal' } catch { return 'normal' }
   })
   const prevOrderCount = useRef(orders.length)
   const bannerTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // 📱 Keep Kitchen Screen Awake so tablet doesn't sleep & silence alarms
+  useEffect(() => {
+    let wakeLockSentinel: any = null
+    const requestWakeLock = async () => {
+      try {
+        if ('wakeLock' in navigator) {
+          wakeLockSentinel = await (navigator as any).wakeLock.request('screen')
+          setScreenLocked(true)
+        }
+      } catch {}
+    }
+    void requestWakeLock()
+
+    // Re-acquire lock if tab returns from background
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        void requestWakeLock()
+      }
+    }
+    document.addEventListener('visibilitychange', handleVisibility)
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibility)
+      if (wakeLockSentinel) {
+        wakeLockSentinel.release().catch(() => {})
+      }
+    }
+  }, [])
 
   const handleTestAudio = () => {
     playKitchenAlarm(1)
@@ -206,25 +236,46 @@ export default function SellerOrders() {
 
       {/* Kitchen Control Strip: Audio Test & Rush Hour Toggle */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#1c1917', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '12px', padding: '0.65rem 0.85rem', marginBottom: '0.75rem', flexWrap: 'wrap', gap: '0.5rem' }}>
-        <button
-          type="button"
-          onClick={handleTestAudio}
-          style={{
-            background: audioTested ? 'rgba(34,197,94,0.15)' : 'rgba(245,158,11,0.15)',
-            border: `1px solid ${audioTested ? '#22c55e' : '#f59e0b'}`,
-            color: audioTested ? '#22c55e' : '#f59e0b',
-            borderRadius: '8px',
-            padding: '0.35rem 0.75rem',
-            fontSize: '0.78rem',
-            fontWeight: 800,
-            cursor: 'pointer',
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: '4px',
-          }}
-        >
-          {audioTested ? '🔊 Sound: Active' : '🔔 Tap to Test Alarm'}
-        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          <button
+            type="button"
+            onClick={handleTestAudio}
+            style={{
+              background: audioTested ? 'rgba(34,197,94,0.15)' : 'rgba(245,158,11,0.15)',
+              border: `1px solid ${audioTested ? '#22c55e' : '#f59e0b'}`,
+              color: audioTested ? '#22c55e' : '#f59e0b',
+              borderRadius: '8px',
+              padding: '0.35rem 0.75rem',
+              fontSize: '0.78rem',
+              fontWeight: 800,
+              cursor: 'pointer',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '4px',
+            }}
+          >
+            {audioTested ? '🔊 Sound: Active' : '🔔 Tap to Test Alarm'}
+          </button>
+
+          {screenLocked && (
+            <span
+              style={{
+                fontSize: '0.72rem',
+                fontWeight: 700,
+                color: '#4ade80',
+                background: 'rgba(34,197,94,0.12)',
+                border: '1px solid rgba(34,197,94,0.3)',
+                padding: '0.3rem 0.6rem',
+                borderRadius: '8px',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '4px',
+              }}
+            >
+              📱 Screen Always ON
+            </span>
+          )}
+        </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
           <span style={{ fontSize: '0.72rem', color: '#a1a1aa', fontWeight: 600, marginRight: '4px' }}>Rush Level:</span>

@@ -57,6 +57,8 @@ export default function FoodDetailModal({ item, onClose }: { item: MenuItem; onC
               src={item.imageUrl}
               alt={item.name}
               style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+              loading="lazy"
+              decoding="async"
             />
           ) : (
             <div style={{ width: '100%', height: '100%', display: 'grid', placeItems: 'center', fontSize: '4.5rem' }}>
