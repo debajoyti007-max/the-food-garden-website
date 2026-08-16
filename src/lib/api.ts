@@ -53,7 +53,6 @@ export async function upsertProductApi(item: MenuItem): Promise<boolean> {
       is_veg: item.isVeg ?? false,
       image_url: item.imageUrl || null,
       archived: item.archived ?? false,
-      description: item.description || '',
     })
     if (error) {
       console.error('[TFG] upsertProductApi failed:', error.message, error.code, error.details)
@@ -81,7 +80,6 @@ async function seedDatabaseWithMenu(items: MenuItem[]) {
       is_veg: it.isVeg ?? false,
       image_url: it.imageUrl || null,
       archived: it.archived ?? false,
-      description: it.description || '',
     }))
     await supabase.from('products').upsert(rows)
   } catch {
@@ -104,6 +102,9 @@ export async function updateProductApi(
 // ── Orders ───────────────────────────────────────────────────────────────────
 export async function createOrderApi(order: Order): Promise<boolean> {
   try {
+    // Ensure all products exist in Supabase so foreign key constraint in order_items never fails
+    void seedDatabaseWithMenu(SEED_MENU)
+
     const { error: orderErr } = await supabase.from('orders').insert({
       id: order.id,
       user_id: order.userId || null,
@@ -112,15 +113,12 @@ export async function createOrderApi(order: Order): Promise<boolean> {
       order_type: order.orderType,
       table_no: order.tableNo || null,
       address: order.address || null,
-      subtotal: order.subtotal,
-      delivery_fee: order.deliveryFee || 0,
-      discount_amount: order.discountAmount || 0,
       total: order.total,
       advance_amount: order.advanceAmount,
+      discount_amount: order.discountAmount || 0,
       utr: order.utr || null,
       utr_verified: false,
       status: order.status,
-      delivery_slot: order.deliverySlot || 'instant',
       created_at: order.createdAt,
     })
 
