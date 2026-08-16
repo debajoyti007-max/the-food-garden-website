@@ -45,6 +45,7 @@ export default function AdminUsers() {
   const [filterRole, setFilterRole] = useState('all')
   const [filterStatus, setFilterStatus] = useState('all') // all | active | blocked
   const [orderCounts, setOrderCounts] = useState<Record<string, number>>({})
+  const [duplicates, setDuplicates] = useState<Set<string>>(new Set()) // phone numbers that appear 2+ times
 
   const loadUsers = async () => {
     setLoading(true)
@@ -52,7 +53,14 @@ export default function AdminUsers() {
       .from('profiles')
       .select('*')
       .order('last_active_at', { ascending: false, nullsFirst: false })
-    setUsers((data as Profile[]) || [])
+    const list = (data as Profile[]) || []
+    setUsers(list)
+
+    // Detect duplicate phone numbers
+    const phoneCounts: Record<string, number> = {}
+    list.forEach(u => { phoneCounts[u.phone] = (phoneCounts[u.phone] || 0) + 1 })
+    const dupPhones = new Set(Object.keys(phoneCounts).filter(p => phoneCounts[p] > 1))
+    setDuplicates(dupPhones)
 
     // Load order counts per user phone
     const { data: orders } = await supabase
@@ -65,6 +73,17 @@ export default function AdminUsers() {
       setOrderCounts(counts)
     }
     setLoading(false)
+  }
+
+  const handleDeleteDuplicate = async (u: Profile) => {
+    if (!confirm(`Delete duplicate entry "${u.name}" (${u.phone})? This will remove the older record.`)) return
+    const { error } = await supabase.from('profiles').delete().eq('id', u.id)
+    if (!error) {
+      showToast(`Duplicate removed: ${u.name}`, '🗑️')
+      void loadUsers()
+    } else {
+      showToast('Failed to delete. Try again.', '❌')
+    }
   }
 
   useEffect(() => { void loadUsers() }, [])
@@ -165,9 +184,25 @@ export default function AdminUsers() {
         </select>
       </div>
 
+      {/* ⚠️ Duplicate Warning Banner */}
+      {duplicates.size > 0 && (
+        <div style={{ background: 'rgba(251,146,60,0.1)', border: '1.5px solid rgba(251,146,60,0.4)', borderRadius: '12px', padding: '0.75rem 1rem', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap' }}>
+          <span style={{ fontSize: '1.2rem' }}>⚠️</span>
+          <div style={{ flex: 1 }}>
+            <strong style={{ color: '#fb923c', fontSize: '0.88rem' }}>
+              {duplicates.size} duplicate phone number{duplicates.size > 1 ? 's' : ''} detected!
+            </strong>
+            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '2px' }}>
+              Duplicate entries are highlighted in orange below. Keep the newest one and delete the older duplicate.
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Count */}
       <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', margin: '0 0 0.75rem', fontWeight: 600 }}>
         Showing {filtered.length} of {users.length} users
+        {duplicates.size > 0 && <span style={{ color: '#fb923c', marginLeft: '0.5rem' }}>⚠️ {duplicates.size} duplicate phone(s)</span>}
       </p>
 
       {/* User List */}
@@ -181,10 +216,11 @@ export default function AdminUsers() {
             const cfg = ROLE_CFG[u.role] || ROLE_CFG.customer
             const isSuper = SUPER_ADMIN_PHONES.includes(u.phone)
             const orders = orderCounts[u.phone] || 0
+            const isDuplicate = duplicates.has(u.phone)
             return (
               <div key={u.id} style={{
-                background: u.is_blocked ? 'rgba(239,68,68,0.05)' : 'var(--surface)',
-                border: `1px solid ${u.is_blocked ? 'rgba(239,68,68,0.2)' : 'var(--border)'}`,
+                background: isDuplicate ? 'rgba(251,146,60,0.06)' : u.is_blocked ? 'rgba(239,68,68,0.05)' : 'var(--surface)',
+                border: `1.5px solid ${isDuplicate ? 'rgba(251,146,60,0.45)' : u.is_blocked ? 'rgba(239,68,68,0.2)' : 'var(--border)'}`,
                 borderRadius: '14px',
                 padding: '0.85rem 1rem',
                 display: 'flex',
@@ -203,6 +239,7 @@ export default function AdminUsers() {
                     <strong style={{ fontSize: '0.92rem', color: 'var(--text-primary)' }}>{u.name}</strong>
                     {isSuper && pill('⭐ Super Admin', '#f59e0b', 'rgba(245,158,11,0.12)')}
                     {u.is_blocked && pill('🚫 Blocked', '#ef4444', 'rgba(239,68,68,0.12)')}
+                    {isDuplicate && pill('⚠️ Duplicate', '#fb923c', 'rgba(251,146,60,0.12)')}
                   </div>
                   <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '2px' }}>
                     📱 {u.phone} · {pill(cfg.label, cfg.color, cfg.bg)}
@@ -245,6 +282,16 @@ export default function AdminUsers() {
                     >
                       {u.is_blocked ? '✅ Unblock' : '🚫 Block'}
                     </button>
+
+                    {/* Delete Duplicate */}
+                    {isDuplicate && (
+                      <button
+                        onClick={() => handleDeleteDuplicate(u)}
+                        style={{ padding: '0.35rem 0.7rem', borderRadius: '8px', border: 'none', background: 'rgba(251,146,60,0.15)', color: '#fb923c', fontSize: '0.75rem', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' }}
+                      >
+                        🗑️ Delete Dup
+                      </button>
+                    )}
 
                     {/* WhatsApp */}
                     <a
