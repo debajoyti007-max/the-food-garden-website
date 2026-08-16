@@ -97,21 +97,26 @@ export default function Checkout() {
   const [address, setAddress] = useState(addresses[0]?.address || '')
   const [addressLabel, setAddressLabel] = useState('Home')
   const [saveThisAddress, setSaveThisAddress] = useState(false)
+  const [paymentMode, setPaymentMode] = useState<'advance' | 'full'>('advance')
   const [utr, setUtr] = useState('')
   const [couponCode, setCouponCode] = useState('')
   const [discount, setDiscount] = useState(0)
   const [couponMessage, setCouponMessage] = useState('')
   const [loading, setLoading] = useState(false)
 
+  useEffect(() => {
+    if (cart.length === 0) {
+      navigate('/cart')
+    }
+  }, [cart.length, navigate])
+
   if (cart.length === 0) {
-    navigate('/cart')
     return null
   }
 
   const deliveryFee = orderType === 'delivery' ? 30 : 0
   const finalTotal = Math.max(0, cartTotal + deliveryFee - discount)
   const advancePayable = Math.ceil(finalTotal * ADVANCE_PERCENT)
-  const [paymentMode, setPaymentMode] = useState<'advance' | 'full'>('advance')
   const payableNow = paymentMode === 'full' ? finalTotal : advancePayable
   const balanceDue = finalTotal - payableNow
 

@@ -26,14 +26,30 @@ export default function RiderView() {
   const cashCollectedToday = completedToday.reduce((sum, o) => sum + Math.max(0, o.total - o.advanceAmount), 0)
 
   const handleStatusChange = async (orderId: string, nextStatus: OrderStatus) => {
-    setUpdatingId(orderId)
-    await updateOrderStatus(orderId, nextStatus)
-    setUpdatingId(null)
+    const target = orders.find((o) => o.id === orderId)
+    if (!target) return
 
     if (nextStatus === 'delivered') {
-      showToast('Delivery marked as completed! 💰', '✅')
-    } else {
-      showToast('Order status updated!', '🛵')
+      if (!target.utrVerified) {
+        showToast('⚠️ Payment not verified yet! Wait for kitchen confirmation.', '⚠️')
+        return
+      }
+      if (target.status !== 'ready') {
+        showToast('⚠️ Food is not ready yet! Wait for kitchen to mark "Ready".', '⚠️')
+        return
+      }
+    }
+
+    setUpdatingId(orderId)
+    const ok = await updateOrderStatus(orderId, nextStatus)
+    setUpdatingId(null)
+
+    if (ok) {
+      if (nextStatus === 'delivered') {
+        showToast('Delivery marked as completed! 💰', '✅')
+      } else {
+        showToast('Order status updated!', '🛵')
+      }
     }
   }
 
@@ -138,64 +154,64 @@ export default function RiderView() {
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
           {displayedOrders.map((o) => {
             const balance = Math.max(0, o.total - o.advanceAmount)
-            const mapQuery = encodeURIComponent(o.address)
             const isUpdating = updatingId === o.id
             const isReady = o.status === 'ready'
+            const isVerified = Boolean(o.utrVerified)
+            const canDeliver = isReady && isVerified
+            const mapQuery = encodeURIComponent(`${o.address}, Nandakumar, Purba Medinipur, West Bengal 721648`)
 
             return (
               <div
                 key={o.id}
                 style={{
                   background: '#1c1917',
-                  border: isReady ? '1.5px solid #10b981' : '1px solid rgba(255,255,255,0.08)',
-                  borderRadius: '20px',
+                  border: '1px solid rgba(255,255,255,0.08)',
+                  borderRadius: '16px',
                   padding: '1.25rem',
-                  boxShadow: isReady ? '0 0 20px rgba(16, 185, 129, 0.15)' : '0 8px 30px rgba(0,0,0,0.3)',
-                  transition: 'all 0.2s',
                 }}
               >
-                {/* Header */}
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.75rem', borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: '0.6rem' }}>
-                  <div>
-                    <strong style={{ fontSize: '1.15rem', color: '#fafaf9' }}>#{formatOrderId(o.id)}</strong>
-                    <span style={{ fontSize: '0.75rem', color: '#a1a1aa', display: 'block', marginTop: '2px' }}>
-                      {new Date(o.createdAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true })}
+                {/* Top Row: Order ID + Status */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.85rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <span style={{ fontSize: '1rem', fontWeight: 900, color: '#fafaf9' }}>
+                      #{formatOrderId(o.id)}
+                    </span>
+                    <span style={{ fontSize: '0.75rem', color: '#a1a1aa' }}>
+                      {new Date(o.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                     </span>
                   </div>
+
                   <span
                     style={{
-                      background: isReady ? '#10b981' : o.status === 'delivered' ? '#15803d' : '#78350f',
-                      color: isReady ? '#18181b' : '#fafaf9',
-                      padding: '4px 12px',
-                      borderRadius: '16px',
-                      fontSize: '0.75rem',
-                      fontWeight: 900,
-                      letterSpacing: '0.04em',
+                      fontSize: '0.72rem',
+                      fontWeight: 800,
+                      padding: '3px 8px',
+                      borderRadius: '6px',
+                      background: isReady ? 'rgba(168, 85, 247, 0.15)' : 'rgba(251, 146, 60, 0.15)',
+                      color: isReady ? '#c084fc' : '#fb923c',
+                      border: `1px solid ${isReady ? 'rgba(168, 85, 247, 0.3)' : 'rgba(251, 146, 60, 0.3)'}`,
                     }}
                   >
-                    {isReady ? '🍽️ READY TO DISPATCH' : o.status.toUpperCase()}
+                    {isReady ? '🍽️ Ready to Deliver' : o.status === 'cooking' ? '👨‍🍳 Cooking' : '⏳ Processing'}
                   </span>
                 </div>
 
                 {/* Customer Details */}
                 <div style={{ marginBottom: '0.85rem' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.4rem' }}>
-                    <strong style={{ fontSize: '1.05rem', color: '#fafaf9' }}>👤 {o.userName}</strong>
-                    <div style={{ display: 'flex', gap: '0.4rem' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.35rem' }}>
+                    <span style={{ fontSize: '0.95rem', fontWeight: 800, color: '#fafaf9' }}>{o.userName}</span>
+                    <div style={{ display: 'flex', gap: '0.35rem' }}>
                       <a
                         href={`tel:${o.phone}`}
                         style={{
-                          background: '#1e3a8a',
-                          border: '1px solid #3b82f6',
-                          color: '#bfdbfe',
+                          background: '#047857',
+                          border: '1px solid #10b981',
+                          color: '#d1fae5',
                           padding: '0.35rem 0.75rem',
                           borderRadius: '8px',
                           textDecoration: 'none',
                           fontWeight: 800,
                           fontSize: '0.78rem',
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: '4px',
                         }}
                       >
                         📞 Call
@@ -207,7 +223,7 @@ export default function RiderView() {
                         target="_blank"
                         rel="noreferrer"
                         style={{
-                          background: '#14532d',
+                          background: '#15803d',
                           border: '1px solid #22c55e',
                           color: '#bbf7d0',
                           padding: '0.35rem 0.75rem',
@@ -215,9 +231,6 @@ export default function RiderView() {
                           textDecoration: 'none',
                           fontWeight: 800,
                           fontSize: '0.78rem',
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: '4px',
                         }}
                       >
                         💬 WhatsApp
@@ -248,9 +261,6 @@ export default function RiderView() {
                         textDecoration: 'none',
                         fontWeight: 700,
                         fontSize: '0.75rem',
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: '3px',
                         flexShrink: 0,
                       }}
                     >
@@ -300,6 +310,31 @@ export default function RiderView() {
                   </span>
                 </div>
 
+                {/* Readiness & Payment Status Banners */}
+                {activeTab === 'active' && !canDeliver && (
+                  <div
+                    style={{
+                      background: 'rgba(245, 158, 11, 0.12)',
+                      border: '1px solid rgba(245, 158, 11, 0.3)',
+                      borderRadius: '10px',
+                      padding: '0.6rem 0.85rem',
+                      fontSize: '0.78rem',
+                      color: '#fef3c7',
+                      marginBottom: '0.75rem',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.5rem',
+                    }}
+                  >
+                    <span>⚠️</span>
+                    <span>
+                      {!isVerified
+                        ? 'Payment UTR is under verification by kitchen/manager.'
+                        : 'Food is currently being prepared in kitchen. Wait for "Ready" status.'}
+                    </span>
+                  </div>
+                )}
+
                 {/* Action Buttons */}
                 {activeTab === 'active' && (
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
@@ -320,7 +355,6 @@ export default function RiderView() {
                         alignItems: 'center',
                         justifyContent: 'center',
                         gap: '6px',
-                        boxShadow: '0 4px 12px rgba(37, 99, 235, 0.35)',
                       }}
                     >
                       🗺️ GPS Maps
@@ -328,21 +362,37 @@ export default function RiderView() {
 
                     <button
                       type="button"
-                      disabled={isUpdating}
+                      disabled={isUpdating || !canDeliver}
                       onClick={() => handleStatusChange(o.id, 'delivered')}
                       style={{
                         padding: '0.75rem',
-                        background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
-                        color: '#18181b',
+                        background: canDeliver
+                          ? 'linear-gradient(135deg, #10b981 0%, #059669 100%)'
+                          : '#27272a',
+                        color: canDeliver ? '#18181b' : '#71717a',
                         borderRadius: '10px',
                         border: 'none',
                         fontWeight: 900,
                         fontSize: '0.85rem',
-                        cursor: isUpdating ? 'not-allowed' : 'pointer',
-                        boxShadow: '0 4px 12px rgba(16, 185, 129, 0.35)',
+                        cursor: canDeliver && !isUpdating ? 'pointer' : 'not-allowed',
+                        boxShadow: canDeliver ? '0 4px 12px rgba(16, 185, 129, 0.35)' : 'none',
+                        opacity: canDeliver ? 1 : 0.65,
                       }}
+                      title={
+                        !isVerified
+                          ? 'Waiting for kitchen payment verification'
+                          : !isReady
+                          ? 'Waiting for food to be marked Ready by kitchen'
+                          : 'Mark as delivered and collected'
+                      }
                     >
-                      {isUpdating ? 'Saving...' : '✓ Delivered & Paid'}
+                      {isUpdating
+                        ? 'Saving...'
+                        : canDeliver
+                        ? '✓ Delivered & Paid'
+                        : !isVerified
+                        ? '⏳ Unverified Payment'
+                        : '👨‍🍳 Cooking in Kitchen'}
                     </button>
                   </div>
                 )}

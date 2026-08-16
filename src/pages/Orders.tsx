@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useStore } from '../context/StoreContext'
 import { useAuth } from '../context/AuthContext'
@@ -40,10 +40,18 @@ export default function Orders() {
   const [reviewNote, setReviewNote] = useState('')
   const [submittingRating, setSubmittingRating] = useState(false)
 
-  // Filter by current user
-  const myOrders = user
-    ? orders.filter((o) => o.phone === user.phone || o.userId === user.id)
-    : orders
+  // Filter strictly by current user or guest session
+  const myOrders = useMemo(() => {
+    if (user) {
+      return orders.filter((o) => o.phone === user.phone || o.userId === user.id)
+    }
+    try {
+      const guestIds: string[] = JSON.parse(localStorage.getItem('tfg_guest_orders') || '[]')
+      return orders.filter((o) => guestIds.includes(o.id))
+    } catch {
+      return []
+    }
+  }, [orders, user])
 
   const handleReorder = (o: any) => {
     reorder(o)

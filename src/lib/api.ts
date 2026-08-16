@@ -140,22 +140,39 @@ export async function createOrderApi(order: Order): Promise<boolean> {
         emoji: it.emoji || '🍽️',
       }))
       const { error: itemErr } = await supabase.from('order_items').insert(itemsToInsert)
-      if (itemErr) console.warn('Order items insert error:', itemErr)
+      if (itemErr) {
+        console.warn('Order items insert error, rolling back order header:', itemErr)
+        // Rollback orphan order row so database never stores incomplete/broken orders
+        await supabase.from('orders').delete().eq('id', order.id)
+        return false
+      }
     }
 
     return true
   } catch (err) {
-    console.warn('createOrderApi error:', err)
+    console.warn('createOrderApi exception, cleaning up:', err)
+    try {
+      await supabase.from('orders').delete().eq('id', order.id)
+    } catch {}
     return false
   }
 }
 
-export async function fetchOrdersApi(): Promise<Order[]> {
+export async function fetchOrdersApi(filter?: { userId?: string; phone?: string }): Promise<Order[]> {
   try {
-    const { data: ordersData, error } = await supabase
+    let query = supabase
       .from('orders')
       .select('*, order_items(*)')
       .order('created_at', { ascending: false })
+
+    if (filter?.userId || filter?.phone) {
+      const clauses: string[] = []
+      if (filter.userId) clauses.push(`user_id.eq.${filter.userId}`)
+      if (filter.phone) clauses.push(`phone.eq.${filter.phone}`)
+      query = query.or(clauses.join(','))
+    }
+
+    const { data: ordersData, error } = await query
 
     if (error || !ordersData) return []
 

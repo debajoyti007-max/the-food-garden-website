@@ -32,9 +32,9 @@ interface StoreContextType {
   reorder: (order: Order) => void
   priceFor: (item: MenuItem | undefined, portion: Portion) => number
   placeOrder: (orderData: Partial<Order>) => Promise<Order>
-  updateOrderStatus: (orderId: string, status: OrderStatus) => Promise<void>
-  verifyUtr: (orderId: string, verified: boolean) => Promise<void>
-  deleteOrder: (orderId: string) => Promise<void>
+  updateOrderStatus: (orderId: string, status: OrderStatus) => Promise<boolean>
+  verifyUtr: (orderId: string, verified: boolean) => Promise<boolean>
+  deleteOrder: (orderId: string) => Promise<boolean>
   cancelOrder: (orderId: string) => Promise<boolean>
   rateOrder: (orderId: string, rating: number, review?: string, tags?: string[]) => Promise<boolean>
   archiveProduct: (productId: string, archived: boolean) => Promise<boolean>
@@ -88,21 +88,28 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   // ── Load orders based on role ─────────────────────────────────────────────
   const loadOrders = useCallback(async () => {
-    const allOrders = await fetchOrdersApi()
-    if (!allOrders) return
-
     if (!user) {
-      // Guests: show orders placed in current session
-      setOrders((prev) => prev.length > 0 ? prev : allOrders.slice(0, 3))
+      // Guests: ONLY show orders placed in their own session / device
+      try {
+        const guestOrderIds: string[] = JSON.parse(localStorage.getItem('tfg_guest_orders') || '[]')
+        if (guestOrderIds.length === 0) {
+          setOrders([])
+          return
+        }
+        const fetched = await fetchOrdersApi()
+        setOrders(fetched.filter((o) => guestOrderIds.includes(o.id)))
+      } catch {
+        setOrders([])
+      }
       return
     }
 
     if (isStaff) {
+      const allOrders = await fetchOrdersApi()
       setOrders(allOrders)
     } else {
-      const myOrders = allOrders.filter(
-        (o) => o.phone === user.phone || o.userId === user.id
-      )
+      // Regular customer: only query and load own orders
+      const myOrders = await fetchOrdersApi({ userId: user.id, phone: user.phone })
       setOrders(myOrders)
     }
   }, [user?.id, user?.role, isStaff, user?.phone])
@@ -125,12 +132,20 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     void loadOrders()
   }, [loadOrders])
 
-  // ── Real-time Orders Subscription (Universal) ─────────────────────────────
+  // ── Real-time Orders Subscription (Debounced to prevent refetch floods) ───
   useEffect(() => {
+    let timer: any = null
+    const debouncedLoadOrders = () => {
+      clearTimeout(timer)
+      timer = setTimeout(() => {
+        void loadOrders()
+      }, 500)
+    }
+
     const ordersChannel = supabase
       .channel('public:orders:realtime')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, () => {
-        void loadOrders()
+        debouncedLoadOrders()
       })
       .subscribe()
 
@@ -142,12 +157,28 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       .subscribe()
 
     return () => {
+      clearTimeout(timer)
       supabase.removeChannel(ordersChannel)
       supabase.removeChannel(productsChannel)
     }
   }, [loadOrders, loadProducts])
 
-  // ── Save addresses per user ───────────────────────────────────────────────
+  // ── Save & Sync addresses per user ─────────────────────────────────────────
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(`tfg_addresses_${user?.id || 'guest'}`)
+      if (saved) {
+        setAddresses(JSON.parse(saved))
+      } else {
+        setAddresses([
+          { label: '🏠 Home', address: 'Bhabanipur Near Kali Mandir, Nandakumar', phone: user?.phone || '', pin: '721648', is_default: true },
+        ])
+      }
+    } catch {
+      setAddresses([])
+    }
+  }, [user?.id, user?.phone])
+
   useEffect(() => {
     localStorage.setItem(`tfg_addresses_${user?.id || 'guest'}`, JSON.stringify(addresses))
   }, [addresses, user?.id])
@@ -215,21 +246,24 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     return s + (p ? priceFor(p, c.portion) * c.qty : 0)
   }, 0)
 
-  // ── 🍽️ Live Menu & Stock Item Update (with Supabase Upsert) ───────────────
+  // ── 🍽️ Live Menu & Stock Item Update (with Revert on Error) ───────────────
   const updateMenuItem = async (updatedItem: MenuItem): Promise<boolean> => {
-    setMenu((prev) =>
-      prev.map((p) => (p.id === updatedItem.id ? updatedItem : p))
-    )
-    const updatedMenu = menu.map((p) => (p.id === updatedItem.id ? updatedItem : p))
-    localStorage.setItem('tfg_menu_v5', JSON.stringify(updatedMenu))
+    let prevMenu: MenuItem[] = []
+    setMenu((prev) => {
+      prevMenu = prev
+      return prev.map((p) => (p.id === updatedItem.id ? updatedItem : p))
+    })
 
     const ok = await upsertProductApi(updatedItem)
-    if (ok) {
-      showToast(`${updatedItem.name} updated live! ✅`, '🍽️')
-    } else {
-      showToast(`${updatedItem.name} updated locally`, '💾')
+    if (!ok) {
+      setMenu(prevMenu)
+      showToast(`Failed to update ${updatedItem.name}. Reverted.`, '⚠️')
+      return false
     }
-    return ok
+
+    localStorage.setItem('tfg_menu_v5', JSON.stringify(menu.map((p) => (p.id === updatedItem.id ? updatedItem : p))))
+    showToast(`${updatedItem.name} updated live! ✅`, '🍽️')
+    return true
   }
 
   const placeOrder = async (orderData: Partial<Order>): Promise<Order> => {
@@ -250,7 +284,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     const deliveryFee = orderData.orderType === 'delivery' ? orderData.deliveryFee || 30 : 0
     const discount = orderData.discountAmount || 0
     const total = Math.max(0, subtotal + deliveryFee - discount)
-    const advanceAmount = Math.ceil(total * ADVANCE_PERCENT)
+    const advanceAmount = orderData.advanceAmount !== undefined ? orderData.advanceAmount : Math.ceil(total * ADVANCE_PERCENT)
 
     const newOrder: Order = {
       id: `TFG-${Math.floor(100000 + Math.random() * 900000)}`,
@@ -274,9 +308,24 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       createdAt: new Date().toISOString(),
     }
 
+    // FIX ITEM 3: Do NOT clear cart until order is saved successfully in database
+    const ok = await createOrderApi(newOrder)
+    if (!ok) {
+      showToast('Could not save order to database. Please try again.', '❌')
+      throw new Error('Failed to create order in database')
+    }
+
+    // Successfully saved! Now update state and clear cart
     setOrders((prev) => [newOrder, ...prev])
     clearCart()
-    await createOrderApi(newOrder)
+
+    // Store in guest orders list if not logged in
+    if (!user) {
+      try {
+        const guestIds = JSON.parse(localStorage.getItem('tfg_guest_orders') || '[]')
+        localStorage.setItem('tfg_guest_orders', JSON.stringify([newOrder.id, ...guestIds]))
+      } catch {}
+    }
 
     // Touch customer last_active_at in profiles if logged in
     if (newOrder.userId) {
@@ -287,29 +336,52 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     return newOrder
   }
 
-  const updateOrderStatus = async (orderId: string, status: OrderStatus) => {
-    setOrders((prev) =>
-      prev.map((o) => (o.id === orderId ? { ...o, status, updatedAt: new Date().toISOString() } : o)),
-    )
-    await updateOrderStatusApi(orderId, status)
+  const updateOrderStatus = async (orderId: string, status: OrderStatus): Promise<boolean> => {
+    let prevOrders: Order[] = []
+    setOrders((prev) => {
+      prevOrders = prev
+      return prev.map((o) => (o.id === orderId ? { ...o, status, updatedAt: new Date().toISOString() } : o))
+    })
+    const ok = await updateOrderStatusApi(orderId, status)
+    if (!ok) {
+      setOrders(prevOrders)
+      showToast('Failed to update order status. Reverted.', '⚠️')
+      return false
+    }
+    return true
   }
 
-  const verifyUtr = async (orderId: string, verified: boolean) => {
-    setOrders((prev) =>
-      prev.map((o) =>
+  const verifyUtr = async (orderId: string, verified: boolean): Promise<boolean> => {
+    let prevOrders: Order[] = []
+    setOrders((prev) => {
+      prevOrders = prev
+      return prev.map((o) =>
         o.id === orderId ? { ...o, utrVerified: verified, status: verified ? 'cooking' : o.status, updatedAt: new Date().toISOString() } : o,
-      ),
-    )
-    await verifyUtrApi(orderId, verified)
+      )
+    })
+    const ok = await verifyUtrApi(orderId, verified)
+    if (!ok) {
+      setOrders(prevOrders)
+      showToast('Failed to update UTR verification in database. Reverted.', '⚠️')
+      return false
+    }
+    return true
   }
 
   const cancelOrder = async (orderId: string): Promise<boolean> => {
-    setOrders((prev) =>
-      prev.map((o) => (o.id === orderId ? { ...o, status: 'cancelled', updatedAt: new Date().toISOString() } : o))
-    )
+    let prevOrders: Order[] = []
+    setOrders((prev) => {
+      prevOrders = prev
+      return prev.map((o) => (o.id === orderId ? { ...o, status: 'cancelled', updatedAt: new Date().toISOString() } : o))
+    })
     const ok = await updateOrderStatusApi(orderId, 'cancelled')
-    if (ok) showToast('Order has been cancelled', '❌')
-    return ok
+    if (!ok) {
+      setOrders(prevOrders)
+      showToast('Failed to cancel order in database. Reverted.', '⚠️')
+      return false
+    }
+    showToast('Order has been cancelled', '❌')
+    return true
   }
 
   const rateOrder = async (orderId: string, rating: number, review?: string, tags?: string[]): Promise<boolean> => {
@@ -338,22 +410,41 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   }
 
   const archiveProduct = async (productId: string, archived: boolean): Promise<boolean> => {
-    setMenu((prev) =>
-      prev.map((p) => (p.id === productId ? { ...p, archived } : p))
-    )
+    let prevMenu: MenuItem[] = []
+    setMenu((prev) => {
+      prevMenu = prev
+      return prev.map((p) => (p.id === productId ? { ...p, archived } : p))
+    })
     try {
       const { error } = await supabase.from('products').update({ archived }).eq('id', productId)
       if (!error) {
         showToast(archived ? 'Dish archived from menu 📦' : 'Dish restored to menu 🟢', archived ? '📦' : '🟢')
         return true
+      } else {
+        setMenu(prevMenu)
+        showToast('Failed to update dish status. Reverted.', '⚠️')
+        return false
       }
-    } catch {}
-    return true
+    } catch {
+      setMenu(prevMenu)
+      showToast('Failed to update dish status. Reverted.', '⚠️')
+      return false
+    }
   }
 
-  const deleteOrder = async (orderId: string) => {
-    setOrders((prev) => prev.filter((o) => o.id !== orderId))
-    await deleteOrderApi(orderId)
+  const deleteOrder = async (orderId: string): Promise<boolean> => {
+    let prevOrders: Order[] = []
+    setOrders((prev) => {
+      prevOrders = prev
+      return prev.filter((o) => o.id !== orderId)
+    })
+    const ok = await deleteOrderApi(orderId)
+    if (!ok) {
+      setOrders(prevOrders)
+      showToast('Failed to delete order in database. Reverted.', '⚠️')
+      return false
+    }
+    return true
   }
 
   const validateCoupon = async (code: string, orderTotal: number): Promise<Coupon | null> => {
