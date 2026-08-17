@@ -212,7 +212,7 @@ export async function updateOrderStatusApi(orderId: string, status: OrderStatus)
   try {
     const { error } = await supabase
       .from('orders')
-      .update({ status, updated_at: new Date().toISOString() })
+      .update({ status })
       .eq('id', orderId)
     return !error
   } catch {
@@ -229,7 +229,6 @@ export async function verifyUtrApi(orderId: string, verified: boolean): Promise<
         // When verified: go straight to 'cooking' so kitchen gets the KOT immediately
         // When unverified/rejected: back to 'pending'
         status: verified ? 'cooking' : 'pending',
-        updated_at: new Date().toISOString(),
       })
       .eq('id', orderId)
     return !error

@@ -400,8 +400,6 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       await supabase
         .from('orders')
         .update({
-          rating,
-          review: review || null,
           rating_tags: tags && tags.length > 0 ? tags : null,
         })
         .eq('id', orderId)
