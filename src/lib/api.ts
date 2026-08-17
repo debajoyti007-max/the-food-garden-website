@@ -210,9 +210,14 @@ export async function fetchOrdersApi(filter?: { userId?: string; phone?: string 
 
 export async function updateOrderStatusApi(orderId: string, status: OrderStatus): Promise<boolean> {
   try {
+    const payload: Record<string, any> = { status }
+    // If order advances to cooking, ready, or delivered, ensure utr_verified is true to satisfy DB check constraint
+    if (['cooking', 'ready', 'delivered'].includes(status)) {
+      payload.utr_verified = true
+    }
     const { error } = await supabase
       .from('orders')
-      .update({ status })
+      .update(payload)
       .eq('id', orderId)
     return !error
   } catch {
